@@ -32,23 +32,43 @@ def compute_run_expectancy(con):
     con.execute("""
         CREATE OR REPLACE VIEW pitch_state AS
         SELECT
-            game_pk, inning, inning_topbot, at_bat_number, pitch_number,
+            game_pk, game_year, inning, inning_topbot, at_bat_number, pitch_number,
             balls, strikes, outs_when_up,
             (on_1b IS NOT NULL) AS r1,
             (on_2b IS NOT NULL) AS r2,
             (on_3b IS NOT NULL) AS r3,
             bat_score,
+            post_bat_score,
             delta_run_exp
         FROM statcast
         WHERE balls IS NOT NULL AND strikes IS NOT NULL AND outs_when_up IS NOT NULL
     """)
 
+    # MUST be MAX(post_bat_score), not MAX(bat_score): bat_score is the score
+    # BEFORE the play resolves, so runs scored on the play that ENDS the
+    # half-inning never appear in any later row. Using bat_score understated
+    # every state (bases-loaded-2-out by 0.027 runs, bases-empty-0-out by 0.007).
     con.execute("""
         CREATE OR REPLACE VIEW half_inning_final_score AS
         SELECT game_pk, inning, inning_topbot,
-               MAX(bat_score) AS final_bat_score
+               MAX(post_bat_score) AS final_bat_score
         FROM pitch_state
         GROUP BY 1, 2, 3
+    """)
+
+    # Walk-off innings are censored: the home team stops batting the moment the
+    # winning run scores, so observed runs understate the state's true value.
+    # Excluded precisely (last half-inning of the game, bottom half, home team
+    # won) rather than dropping every game's last half-inning, which would also
+    # throw away complete top-of-9th innings.
+    con.execute("""
+        CREATE OR REPLACE VIEW game_end AS
+        SELECT game_pk,
+               MAX(inning * 2 + CASE WHEN inning_topbot = 'Bot' THEN 1 ELSE 0 END) AS last_hi_key,
+               MAX(post_home_score) AS fin_home,
+               MAX(post_away_score) AS fin_away
+        FROM statcast
+        GROUP BY 1
     """)
 
     con.execute("""
@@ -57,6 +77,12 @@ def compute_run_expectancy(con):
         FROM pitch_state p
         JOIN half_inning_final_score h
           ON p.game_pk = h.game_pk AND p.inning = h.inning AND p.inning_topbot = h.inning_topbot
+        JOIN game_end g ON p.game_pk = g.game_pk
+        WHERE NOT (
+            (p.inning * 2 + CASE WHEN p.inning_topbot = 'Bot' THEN 1 ELSE 0 END) = g.last_hi_key
+            AND p.inning_topbot = 'Bot'
+            AND g.fin_home > g.fin_away
+        )
     """)
 
     re_table = con.execute("""

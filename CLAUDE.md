@@ -199,6 +199,45 @@ observed success rate means players are under-challenging.
      uncertainty alone makes the call genuinely ambiguous (0.05<P<0.95). Put
      both numbers in the writeup limitations section.
 
+4. **Run expectancy** — `src/run_expectancy.py` builds RE(balls, strikes, outs,
+   base state) from our own data into `data/run_expectancy.parquet` +
+   `data/baseball.duckdb`. Two traps found the hard way (2026-09-05):
+
+   - **Use `MAX(post_bat_score)`, never `MAX(bat_score)`, for the half-inning
+     final score.** `bat_score` is the score BEFORE the play resolves, so runs
+     scored on the play that ENDS the half-inning appear in no later row and
+     get silently dropped. This understated every state (bases-loaded-2-out by
+     0.027 runs, bases-empty-0-out by 0.007) and pushed bases-loaded-2-out
+     below its published band, which is how it was caught.
+   - **Exclude walk-off half-innings** (game's last half-inning, bottom half,
+     home team won). They're censored — the home team stops batting the instant
+     the winning run scores — which biases exactly the high-RE late-inning
+     states the challenge model cares about most.
+   - Validated: all 24 base-out cells land in published RE24 bands
+     (empty/0out 0.485, loaded/0out 2.359, loaded/2out 0.755).
+   - Run environment is drifting by season — bases-loaded-2-out is 0.826 (2024)
+     / 0.751 (2025) / 0.721 (2026) on even samples. Use 2026 for the decision
+     model rather than the pooled table, or at minimum check sensitivity.
+
+5. **`delta_run_exp` is COUNT-BASED, not base-out aware — do NOT use it as the
+   run value of flipping a call.** The walkthrough (docs/) suggests it as a
+   shortcut for Step 1.3. That shortcut is wrong for this project. Verified
+   three ways: (a) for 0-0 called strikes it ranges only -0.038 (bases empty)
+   to -0.044 (bases loaded) — essentially flat where true RE differs by ~8x;
+   (b) recovering Statcast's implied RE from inning-ending outs gives ~0.24 for
+   ALL eight 2-out base states (true values run 0.099 to 0.755); (c) individual
+   3-2 inning-ending strikeouts all carry an identical -0.367 across different
+   games. It's a pitch-quality metric that deliberately strips situational
+   context. Our own base-out-aware table is required, since the entire value of
+   flipping a ball/strike call depends on who's on base.
+
+   Transition-level check (`scripts/validate_re_transitions.py`): correlation
+   between our implied RE(next)-RE(current) and mean `delta_run_exp` is 0.89
+   unweighted / 0.87 pitch-weighted, median difference -0.006 runs. The 431/576
+   cells exceeding 0.02 runs are concentrated exactly in bases-loaded and
+   deep-count states — i.e. the divergence is the base-out blindness above, not
+   an off-by-one in our count transitions (an off-by-one would scatter).
+
 ## Conventions
 
 - Python 3.11, venv at `.venv`
