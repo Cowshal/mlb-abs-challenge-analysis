@@ -219,20 +219,57 @@ def main():
     per_batter["diff_in"] = (per_batter.measured_height_ft - per_batter.listed_height_ft) * 12
 
     print(f"batters with >=1 usable vertical challenge: {len(per_batter)}")
-    robust = per_batter[per_batter.n_pitches >= 3]
+    robust = per_batter[per_batter.n_pitches >= 3].copy()
     print(f"batters with >=3 usable vertical challenges (robust median): {len(robust)}")
-    print(f"\nlisted-vs-measured height diff (inches), all batters with >=1 pitch:")
-    print(f"  mean={per_batter.diff_in.mean():.3f}  median={per_batter.diff_in.median():.3f}  "
-          f"p95={per_batter.diff_in.abs().quantile(0.95):.3f}")
-    if len(robust):
-        print(f"\nsame, restricted to batters with >=3 pitches:")
-        print(f"  mean={robust.diff_in.mean():.3f}  median={robust.diff_in.median():.3f}  "
-              f"p95={robust.diff_in.abs().quantile(0.95):.3f}")
+
+    print(f"\n=== ROBUST SET (n>=3), listed-vs-measured height diff, inches ===")
+    d = robust.diff_in
+    print(f"  mean signed        = {d.mean():.3f}")
+    print(f"  mean ABSOLUTE      = {d.abs().mean():.3f}")
+    print(f"  median ABSOLUTE    = {d.abs().median():.3f}")
+    print(f"  std (signed)       = {d.std():.3f}")
+    print(f"  p95 (absolute)     = {d.abs().quantile(0.95):.3f}")
+
+    counts, edges = np.histogram(d, bins=12)
+    print(f"\n  histogram of (measured - listed), inches:")
+    for c, lo, hi in zip(counts, edges[:-1], edges[1:]):
+        bar = "#" * c
+        print(f"    [{lo:6.2f}, {hi:6.2f}) {bar} {c}")
+
+    print(f"\n  10 largest |diff| in the robust set:")
+    top10 = robust.reindex(robust.diff_in.abs().sort_values(ascending=False).index).head(10)
+    print(top10[["batter_name", "n_pitches", "listed_height_ft", "measured_height_ft", "diff_in"]]
+          .to_string(index=False))
+
+    # ---- circularity check: top-derived vs bottom-derived height, independently ----
+    per_batter_axis = vertical.groupby(["batter", "batter_name", "axis"]).agg(
+        n=("implied_height_ft", "size"), h=("implied_height_ft", "median")
+    ).reset_index()
+    wide = per_batter_axis.pivot_table(index=["batter", "batter_name"], columns="axis",
+                                        values=["n", "h"])
+    wide.columns = [f"{a}_{b}" for a, b in wide.columns]
+    wide = wide.reset_index()
+    both = wide.dropna(subset=["h_top", "h_bot"]).copy()
+    both["diff_top_minus_bot_in"] = (both.h_top - both.h_bot) * 12
+    print(f"\n=== CIRCULARITY CHECK: batters with >=1 top-bound AND >=1 bottom-bound "
+          f"challenge, heights derived independently ===")
+    print(f"  n batters with both: {len(both)}")
+    if len(both):
+        dd = both.diff_top_minus_bot_in
+        print(f"  mean |top-derived - bottom-derived| (in) = {dd.abs().mean():.3f}")
+        print(f"  median |...|                              = {dd.abs().median():.3f}")
+        print(f"  p95 |...|                                 = {dd.abs().quantile(0.95):.3f}")
+        both_robust = both[(both.n_top >= 2) & (both.n_bot >= 2)]
+        print(f"  n batters with >=2 pitches on EACH side: {len(both_robust)}")
+        if len(both_robust):
+            dd2 = both_robust.diff_top_minus_bot_in
+            print(f"  restricted to that set: mean|diff|={dd2.abs().mean():.3f}  "
+                  f"median|diff|={dd2.abs().median():.3f}  p95={dd2.abs().quantile(0.95):.3f}")
 
     Path("data").mkdir(exist_ok=True)
     per_batter.to_parquet("data/measured_heights.parquet", index=False)
-    print("\nsaved data/measured_heights.parquet")
-    print(per_batter.sort_values("n_pitches", ascending=False).head(10).to_string(index=False))
+    vertical.to_parquet("data/measured_heights_pitch_level.parquet", index=False)
+    print("\nsaved data/measured_heights.parquet and data/measured_heights_pitch_level.parquet")
 
 
 if __name__ == "__main__":
