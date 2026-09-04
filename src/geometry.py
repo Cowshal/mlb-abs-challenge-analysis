@@ -79,3 +79,32 @@ def ball_edge_distance(center_dist, radius=BALL_RADIUS_FT):
 def in_abs_zone(x, z, batter_height_ft, top_pct=0.535, bot_pct=0.270, radius=BALL_RADIUS_FT):
     center = center_distance_to_zone(x, z, batter_height_ft, top_pct, bot_pct)
     return ball_edge_distance(center, radius) > 0
+
+
+# Listed heights are published rounded to the nearest whole inch (confirmed
+# 2026-09-05: every listed height in the dataset is an exact integer number
+# of inches). A batter's true height is therefore ~Uniform(listed - 0.5in,
+# listed + 0.5in) unless we've independently backed out their actual
+# measured height from real challenges (see scripts/verify_ball_radius.py).
+HEIGHT_ROUNDING_HALFWIDTH_FT = 0.5 / 12.0
+
+
+def p_inside_zone(x, z, height_ft, height_uncertainty_ft=0.0, n_grid=21,
+                   top_pct=0.535, bot_pct=0.270, radius=BALL_RADIUS_FT):
+    """
+    Probability the ball is inside the ABS zone, integrating over uncertainty
+    in batter height. Pass height_uncertainty_ft=0 (default) for a batter
+    with a trusted measured height -> reduces to a deterministic 0/1 call.
+    For a listed-height-only batter, pass HEIGHT_ROUNDING_HALFWIDTH_FT to
+    integrate over the rounding-to-nearest-inch uncertainty.
+    """
+    x = np.atleast_1d(np.asarray(x, dtype=float))
+    z = np.atleast_1d(np.asarray(z, dtype=float))
+    height_ft = np.atleast_1d(np.asarray(height_ft, dtype=float))
+    if height_uncertainty_ft == 0:
+        return in_abs_zone(x, z, height_ft, top_pct, bot_pct, radius).astype(float)
+    grid = np.linspace(-height_uncertainty_ft, height_uncertainty_ft, n_grid)
+    probs = np.zeros(np.broadcast_shapes(x.shape, z.shape, height_ft.shape), dtype=float)
+    for dh in grid:
+        probs = probs + in_abs_zone(x, z, height_ft + dh, top_pct, bot_pct, radius)
+    return probs / n_grid

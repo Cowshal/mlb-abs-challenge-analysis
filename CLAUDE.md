@@ -153,6 +153,52 @@ observed success rate means players are under-challenging.
    diff for batters with >=3 pitches: mean 0.006 in, median 0.043 in, p95 0.465
    in. Listed height is a fine proxy for this project; don't over-invest here.
 
+   **Correction (2026-09-05): the mean-signed number above understated the
+   real per-batter error.** Mean SIGNED diff ~0 just means errors are
+   symmetric and cancel across batters, not that any individual batter's
+   error is small. Robust set (n>=3 pitches, 203 batters), diff = measured -
+   listed, in inches:
+   - mean absolute = 0.244, median absolute = 0.234, std (signed) = 0.281, p95 = 0.465, max = 0.510
+   - Confirmed: every listed height in the dataset is an exact whole number
+     of inches (max fractional part = 0.0). KS test of (measured - listed)
+     against Uniform(-0.5, +0.5) inches: D=0.0577, p=0.49 — does not reject.
+     Conclusion: **listed height is true height rounded to the nearest inch,
+     and the back-out recovers the unrounded value.** `data/measured_heights.parquet`
+     is genuinely novel per-batter data, not a diagnostic byproduct.
+   - Circularity ruled out explicitly: the back-out formula
+     (`true_edge = z_mid ± (signed_edge_distance - BALL_RADIUS_FT)`, then
+     `/0.535` or `/0.270`) never references listed height — listed height only
+     picks which bucket (top/bottom/side/corner) a challenge falls into, not
+     the computed value. Verified empirically: for the 178 batters with both a
+     top-bound and a bottom-bound challenge, `zone_top/0.535` and
+     `zone_bot/0.270` are two fully independent derivations (different
+     pitches, different formulas) yet agree with EACH OTHER to a median of
+     0.012 in (p95 0.030 in) — ~20x tighter than either one's ~0.24 in
+     departure from listed height.
+   - **Data precision floor, not a bug:** raw `edge_distance` (and the
+     trajectory fields behind our `z_mid`) appear to be published at ~0.001 ft
+     (~0.01 in) resolution — confirmed by inverting the boundary equation
+     pre-division-by-0.270/0.535 and finding the unique values sit on a clean
+     0.001 ft grid. This is why unrelated batters occasionally produce
+     bit-identical implied heights (heights cluster naturally + narrow
+     near-boundary z-range + shared grid) — verified NOT a pandas
+     indexing/alignment bug by hand-recomputing one such row from raw inputs
+     and matching the stored value exactly. ~20x below the ~0.24 in signal, so
+     it doesn't threaten the finding, but don't report these numbers to more
+     than ~2 decimal places of inches — the extra digits aren't real.
+   - **Uncertainty model for the ~500 batters without a measured height:**
+     `src/geometry.py::p_inside_zone(x, z, height_ft, height_uncertainty_ft)`
+     integrates zone membership over a height distribution instead of a
+     deterministic call. Use `height_uncertainty_ft=0` (deterministic) for
+     batters with a measured height; use
+     `HEIGHT_ROUNDING_HALFWIDTH_FT` (0.5/12 ft) for listed-height-only batters
+     (true height ~ Uniform(listed-0.5in, listed+0.5in)). On the 979
+     vertical-bound challenged pitches for the 203 robust-set batters: using
+     listed instead of measured height flips the deterministic in/out call on
+     **2.04%** of pitches; **7.97%** fall in a zone where the rounding
+     uncertainty alone makes the call genuinely ambiguous (0.05<P<0.95). Put
+     both numbers in the writeup limitations section.
+
 ## Conventions
 
 - Python 3.11, venv at `.venv`
