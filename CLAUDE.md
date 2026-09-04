@@ -154,6 +154,21 @@ observed success rate means players are under-challenging.
    (batters only challenge strikes). To recover the original on-field call:
    same as `call_name` if `is_overturned=false`, the opposite if `true`.
 
+   **The bulk CSV's `description` has the SAME problem** (learned the hard way
+   2026-09-05, after documenting it for `call_name` and then not applying it).
+   `description` in `pybaseball.statcast()` output is also post-review, so a
+   challenged pitch shows the flipped call. Symptom: role assignment and win
+   condition both invert for every overturned challenge, producing a ~0.6%
+   measured success rate against a real 53.6%. Fix: join the challenge records
+   and recover `original_call` before assigning which side the opportunity
+   belonged to (see `scripts/build_challenge_opportunities.py`). Only ~3% of
+   called pitches are affected, but they are exactly the ones any
+   challenge-behaviour analysis is about.
+
+   Useful side effect: our geometry's sign agrees with the FINAL call on 99.4%
+   of challenged pitches, which independently confirms both that ABS resolves
+   to ball-edge geometry and that our zone model reproduces its decisions.
+
    **`edge_distance` has no sign convention — it's an unsigned magnitude.**
    Checked 13 real challenges spanning all 4 combinations of
    original-call x overturned/confirmed: `edge_distance` was positive in

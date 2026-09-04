@@ -117,15 +117,42 @@ def main():
                  zip(df.balls, df.strikes, df.outs, df.r1, df.r2, df.r3)]
     df = df.dropna(subset=["dre"]).reset_index(drop=True)
 
-    # challenger + success probability
-    is_strike_call = df.description == "called_strike"
+    # `description` is the POST-REVIEW call, same gotcha as Savant's call_name:
+    # a challenged pitch already shows the flipped result. For the ~3% of called
+    # pitches that were actually challenged, recover the ORIGINAL on-field call
+    # before assigning who the opportunity belonged to. Without this, every
+    # overturned challenge is filed under the wrong side and its win condition
+    # inverts -- it shows up as a ~0.6% success rate against a real 53.6%.
+    chal = pd.read_parquet("data/abs_challenges.parquet")
+    for c in ("game_pk", "ab_number", "pitch_number"):
+        chal[c] = chal[c].astype(np.int64)
+    chal = chal.drop_duplicates(subset=["game_pk", "ab_number", "pitch_number"])
+    key = ["game_pk", "at_bat_number", "pitch_number"]
+    for c in key:
+        df[c] = df[c].astype(np.int64)
+    df = df.merge(
+        chal.rename(columns={"ab_number": "at_bat_number"})[key + ["is_overturned"]],
+        on=key, how="left")
+    df["was_challenged"] = df.is_overturned.notna()
+    df["overturned"] = df.is_overturned.fillna(False).astype(bool)
+
+    flipped = df.was_challenged & df.overturned
+    df["original_call"] = np.where(
+        flipped,
+        np.where(df.description == "called_strike", "ball", "called_strike"),
+        df.description)
+
+    is_strike_call = df.original_call == "called_strike"
     df["challenger"] = np.where(is_strike_call, "batting", "fielding")
     df["p_success"] = np.where(is_strike_call, 1.0 - df.p_inside, df.p_inside)
+    print(f"{df.was_challenged.sum():,} pitches were actually challenged; "
+          f"{flipped.sum():,} of those had their call flipped and were relabelled")
 
     keep = ["game_pk", "game_date", "inning", "inning_topbot", "at_bat_number",
             "pitch_number", "batter", "pitcher", "description", "challenger",
             "balls", "strikes", "outs", "r1", "r2", "r3",
             "x_mid", "z_mid", "height_ft", "has_measured",
+            "original_call", "was_challenged", "overturned",
             "p_inside", "p_success", "dre"]
     out = df[keep]
     out.to_parquet("data/challenge_opportunities.parquet", index=False)

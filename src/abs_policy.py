@@ -125,6 +125,13 @@ def simulate(opp, ov, seed=SEED):
     dynamics: two challenges, one spent only on an INCORRECT call, rights gone
     after two incorrect, one restored each extra inning.
 
+    Decisions are made on the player's NOISY POSTERIOR (column p_post) and
+    outcomes are resolved against the TRUE location (column won_if_challenged).
+    Those must be separate: recomputing p with a wider sigma and then also
+    resolving the coin flip against that same p would corrupt the result in both
+    directions -- it would let the model both decide and be graded on beliefs it
+    invented, and no information gap could ever appear.
+
     A team's opportunities are its called strikes while batting plus its called
     balls while fielding: the home team bats in Bot halves and fields in Top.
     """
@@ -141,6 +148,7 @@ def simulate(opp, ov, seed=SEED):
     rows = []
     for (game_pk, team), g in opp.groupby(["game_pk", "team"], sort=False):
         k, used, correct, runs = 0, 0, 0, 0.0
+        by_role = {"batting": [0, 0], "fielding": [0, 0]}  # [used, correct]
         prev_inning = None
         for r in g.itertuples():
             if prev_inning is not None and r.inning > prev_inning and r.inning > 9:
@@ -149,22 +157,72 @@ def simulate(opp, ov, seed=SEED):
             if k >= 2:
                 continue
             C = cmap.get(r.t, last)["C_k0" if k == 0 else "C_k1"]
-            if r.p_success * r.dre > (1 - r.p_success) * C:
+            if r.p_post * r.dre > (1 - r.p_post) * C:
                 used += 1
-                if rng.random() < r.p_success:
+                by_role[r.challenger][0] += 1
+                if r.won_if_challenged:          # resolved against TRUTH
                     correct += 1
                     runs += r.dre
+                    by_role[r.challenger][1] += 1
                 else:
                     k += 1
-        rows.append({"team": team, "used": used, "correct": correct, "runs": runs})
+        rows.append({"team": team, "used": used, "correct": correct, "runs": runs,
+                     "bat_used": by_role["batting"][0], "bat_correct": by_role["batting"][1],
+                     "fld_used": by_role["fielding"][0], "fld_correct": by_role["fielding"][1]})
+    return pd.DataFrame(rows)
 
-    sim = pd.DataFrame(rows)
-    return sim.groupby("team").agg(
-        challenges_per_game=("used", "mean"),
-        correct_per_game=("correct", "mean"),
-        success_rate=("correct", lambda s: s.sum() / max(sim.loc[s.index, "used"].sum(), 1)),
-        runs_gained_per_game=("runs", "mean"),
-    ).reset_index()
+
+def summarize(sim, n_games):
+    def rate(u, c):
+        return c.sum() / u.sum() if u.sum() else float("nan")
+    return {
+        "challenges_per_team_game": sim.used.sum() / len(sim),
+        "success_rate": rate(sim.used, sim.correct),
+        "runs_per_team_game": sim.runs.sum() / len(sim),
+        "bat_per_team_game": sim.bat_used.sum() / len(sim),
+        "bat_success": rate(sim.bat_used, sim.bat_correct),
+        "fld_per_team_game": sim.fld_used.sum() / len(sim),
+        "fld_success": rate(sim.fld_used, sim.fld_correct),
+    }
+
+
+def run_scenario(opp, sigma_ft, q, seed=SEED, label=""):
+    """
+    Full pipeline at one perceptual sigma: draw what the player sees, form the
+    posterior, re-solve the option values against that belief distribution, then
+    play it out resolving on truth.
+
+    Re-solving the DP matters -- the worth of a challenge token depends on how
+    well you can pick, so a noisier player has different option values, not just
+    a different threshold.
+    """
+    from perception import build_posterior_lookup, posterior_from_observation
+
+    rng = np.random.default_rng(seed)
+    opp = opp.copy()
+    p_post = np.empty(len(opp))
+    for side in ("batting", "fielding"):
+        m = (opp.challenger == side).values
+        d = opp.d.values[m]
+        o_grid, p_grid = build_posterior_lookup(d, sigma_ft, side)
+        obs = d + rng.normal(0.0, sigma_ft, size=len(d))
+        p_post[m] = posterior_from_observation(obs, o_grid, p_grid)
+    opp["p_post"] = p_post
+    opp["won_if_challenged"] = np.where(opp.challenger == "batting", opp.d < 0, opp.d > 0)
+
+    pools = {side: [g[["p_post", "dre"]].to_numpy()
+                    for _, g in opp[opp.challenger == side].groupby(
+                        ["game_pk", "inning", "inning_topbot"])]
+             for side in ("batting", "fielding")}
+    W = solve(pools, q, team_bats_on_even_t=True, seed=seed)
+    ov = option_values(W)
+    sim = simulate(opp, ov, seed=seed)
+    out = summarize(sim, opp.game_pk.nunique())
+    out["label"] = label
+    out["sigma_in"] = sigma_ft * 12
+    out["C_k0"] = ov[ov.t == 1].iloc[0].C_k0
+    out["C_k1"] = ov[ov.t == 1].iloc[0].C_k1
+    return out, ov
 
 
 def main():
@@ -212,31 +270,68 @@ def main():
     ov.to_parquet("data/option_values.parquet", index=False)
     print("\nsaved data/option_values.parquet")
 
-    # Behavioural sanity check: how many challenges does the optimal policy
-    # actually pull the trigger on, per team per game? Observed 2026 behaviour
-    # is ~2 per team per game. Wildly more or fewer means the option value is
-    # mis-scaled even if C(0) <= C(1) holds.
-    opp = pd.read_parquet("data/challenge_opportunities.parquet")
-    opp["t"] = (opp.inning - 1) * 2 + np.where(opp.inning_topbot == "Bot", 2, 1)
-    cmap = ov.set_index("t")[["C_k0", "C_k1"]].to_dict("index")
-    c0 = opp.t.map(lambda t: cmap.get(t, cmap[N_REGULATION_HALF_INNINGS])["C_k0"])
-    c1 = opp.t.map(lambda t: cmap.get(t, cmap[N_REGULATION_HALF_INNINGS])["C_k1"])
-    gain = opp.p_success * opp.dre
-    opp["fire_k0"] = gain > (1 - opp.p_success) * c0
-    opp["fire_k1"] = gain > (1 - opp.p_success) * c1
+    decomposition(q)
 
+
+HAWKEYE_SIGMA_FT = 0.5 / 12.0
+
+
+def observed_row(opp):
+    """Actual 2026 behaviour, straight from the challenge flags on the pitches."""
+    j = opp[opp.was_challenged]
     n_games = opp.game_pk.nunique()
-    print("\n=== upper bound (IGNORES token exhaustion -- not a real count) ===")
-    for side in ("batting", "fielding"):
-        s = opp[opp.challenger == side]
-        print(f"  {side:9s} k=0 threshold fires on {s.fire_k0.sum() / n_games:5.2f}/game "
-              f"of {len(s)/n_games:5.1f} opportunities/game")
+    out = {
+        "label": "observed 2026",
+        "sigma_in": np.nan,
+        "challenges_per_team_game": len(j) / n_games / 2,
+        "success_rate": j.overturned.mean(),
+        "runs_per_team_game": j.dre[j.overturned].sum() / n_games / 2,
+    }
+    for role, pfx in (("batting", "bat"), ("fielding", "fld")):
+        s = j[j.challenger == role]
+        out[f"{pfx}_per_team_game"] = len(s) / n_games / 2
+        out[f"{pfx}_success"] = s.overturned.mean()
+    return out
 
-    print("\n=== simulation WITH token dynamics (2 challenges, lost only when wrong) ===")
-    sim = simulate(opp, ov, seed=SEED)
-    print(sim.to_string(index=False))
-    print(f"\n  observed 2026 behaviour: ~4.1 challenges/game across both teams "
-          f"(~2.1 per team per game)")
+
+def decomposition(q):
+    opp = pd.read_parquet("data/challenge_opportunities.parquet")
+    from geometry import center_distance_to_zone, ball_edge_distance
+    opp["d"] = ball_edge_distance(center_distance_to_zone(
+        opp.x_mid.values, opp.z_mid.values, opp.height_ft.values))
+    opp["t"] = (opp.inning - 1) * 2 + np.where(opp.inning_topbot == "Bot", 2, 1)
+
+    sigmas = pd.read_parquet("data/perception_sigma.parquet")
+    player_sigma = float(sigmas.sigma_ft.mean())
+    print(f"\nfitted player perceptual sigma: {player_sigma*12:.3f} in "
+          f"(by role: {dict(zip(sigmas.side, (sigmas.sigma_in).round(3)))})")
+
+    rows = [observed_row(opp)]
+    for sig, label in ((player_sigma, "optimal @ player sigma"),
+                       (HAWKEYE_SIGMA_FT, "optimal @ Hawk-Eye sigma")):
+        r, _ = run_scenario(opp, sig, q, label=label)
+        rows.append(r)
+    res = pd.DataFrame(rows)
+
+    print("\n=== THREE-WAY DECOMPOSITION (per team per game) ===")
+    cols = ["label", "sigma_in", "challenges_per_team_game", "success_rate",
+            "runs_per_team_game"]
+    print(res[cols].to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+
+    obs, ply, hawk = (res.runs_per_team_game.iloc[i] for i in (0, 1, 2))
+    print(f"\n  decision gap   (player-optimal - observed) = {ply-obs:+.3f} runs/team-game"
+          f"  = {(ply-obs)*162:+.1f} runs/team-season   <-- actionable")
+    print(f"  information gap (Hawk-Eye - player-optimal) = {hawk-ply:+.3f} runs/team-game"
+          f"  = {(hawk-ply)*162:+.1f} runs/team-season   <-- not coachable")
+    print(f"  total gap                                   = {hawk-obs:+.3f} runs/team-game"
+          f"  = {(hawk-obs)*162:+.1f} runs/team-season")
+
+    print("\n=== BY CHALLENGER ROLE ===")
+    rcols = ["label", "bat_per_team_game", "bat_success", "fld_per_team_game", "fld_success"]
+    print(res[rcols].to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+
+    res.to_parquet("data/policy_decomposition.parquet", index=False)
+    print("\nsaved data/policy_decomposition.parquet")
 
 
 if __name__ == "__main__":
