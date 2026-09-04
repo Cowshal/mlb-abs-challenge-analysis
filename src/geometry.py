@@ -42,6 +42,16 @@ def location_at_midplate(y0, vy0, ay, x0, vx0, ax, z0, vz0, az):
     return x, z
 
 
+# MEASURED FACT (2026-09-05), contra the project walkthrough: plate_x/plate_z
+# are ALREADY reported at the middle of the plate (y = 8.5/12), not the front.
+# Solving the trajectory to y=8.5/12 reproduces plate_x/plate_z to 0.0000 in
+# over 940 pitches, while y=17/12 (front) is off by 0.25 in horizontally and
+# 0.98 in vertically. True in 2024 as well, so it is a long-standing convention
+# and not an ABS-era change. location_at_midplate() above is therefore correct
+# but redundant -- plate_x/plate_z can be used directly, which matters because
+# the bulk CSV export ships no x0/y0/z0 anchor to re-solve from.
+
+
 def center_distance_to_zone(x, z, batter_height_ft, top_pct=0.535, bot_pct=0.270):
     """
     Signed Euclidean distance from the ball's CENTER (x, z) to the ABS zone
@@ -90,21 +100,45 @@ HEIGHT_ROUNDING_HALFWIDTH_FT = 0.5 / 12.0
 
 
 def p_inside_zone(x, z, height_ft, height_uncertainty_ft=0.0, n_grid=21,
+                   location_sigma_ft=0.0,
                    top_pct=0.535, bot_pct=0.270, radius=BALL_RADIUS_FT):
     """
     Probability the ball is inside the ABS zone, integrating over uncertainty
-    in batter height. Pass height_uncertainty_ft=0 (default) for a batter
-    with a trusted measured height -> reduces to a deterministic 0/1 call.
-    For a listed-height-only batter, pass HEIGHT_ROUNDING_HALFWIDTH_FT to
-    integrate over the rounding-to-nearest-inch uncertainty.
+    in batter height and (optionally) in the tracked location itself.
+
+    height_uncertainty_ft: 0 for a batter with a trusted measured height;
+        HEIGHT_ROUNDING_HALFWIDTH_FT for a listed-height-only batter, whose
+        true height is ~Uniform(listed - 0.5in, listed + 0.5in).
+
+    location_sigma_ft: perpendicular location uncertainty. With this at 0 and a
+        measured height, the result is a hard 0/1 call -- which makes any
+        challenge policy degenerate ("challenge exactly when the call is
+        wrong"), since it assumes the decision-maker knows the true location.
+        A non-zero sigma represents what is actually knowable at decision time.
+        Handled as P(signed distance + noise > 0) = Phi(d / sigma), exact for
+        the one-dimensional perpendicular case that dominates near an edge.
     """
     x = np.atleast_1d(np.asarray(x, dtype=float))
     z = np.atleast_1d(np.asarray(z, dtype=float))
     height_ft = np.atleast_1d(np.asarray(height_ft, dtype=float))
+
     if height_uncertainty_ft == 0:
-        return in_abs_zone(x, z, height_ft, top_pct, bot_pct, radius).astype(float)
-    grid = np.linspace(-height_uncertainty_ft, height_uncertainty_ft, n_grid)
+        offsets = np.array([0.0])
+    else:
+        offsets = np.linspace(-height_uncertainty_ft, height_uncertainty_ft, n_grid)
+
     probs = np.zeros(np.broadcast_shapes(x.shape, z.shape, height_ft.shape), dtype=float)
-    for dh in grid:
-        probs = probs + in_abs_zone(x, z, height_ft + dh, top_pct, bot_pct, radius)
-    return probs / n_grid
+    for dh in offsets:
+        d = ball_edge_distance(
+            center_distance_to_zone(x, z, height_ft + dh, top_pct, bot_pct), radius)
+        if location_sigma_ft > 0:
+            probs = probs + _norm_cdf(d / location_sigma_ft)
+        else:
+            probs = probs + (d > 0)
+    return probs / len(offsets)
+
+
+def _norm_cdf(t):
+    from math import sqrt
+    from scipy.special import erf
+    return 0.5 * (1.0 + erf(np.asarray(t, dtype=float) / sqrt(2.0)))

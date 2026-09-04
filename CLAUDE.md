@@ -66,6 +66,24 @@ Update this checklist as things land.
 - Middle of plate is `y = 8.5/12 ft` — must re-solve the trajectory to get there
 - Use `x0,y0,z0 / vx0,vy0,vz0 / ax,ay,az` with constant-acceleration kinematics
 
+**CORRECTION (2026-09-05) — the two bullets above about `plate_x` are WRONG.**
+Measured, not assumed: solving the trajectory to `y = 8.5/12` reproduces
+`plate_x`/`plate_z` to **0.0000 inches** over 940 pitches, while `y = 17/12`
+(front) is off by 0.25 in horizontally and 0.98 in vertically, and `y = 0`
+(back) is off by a similar amount. So **`plate_x`/`plate_z` are already the
+MIDPLATE location** — exactly where ABS judges. Also true on 2024 games, so
+it is a long-standing convention, not an ABS-era change. Consequences:
+- The trajectory re-solve (`location_at_midplate`) is correct but redundant;
+  `plate_x`/`plate_z` can be used directly. It was still worth building, since
+  it is what proved the equivalence and it validated at R^2 = 1.0000 against
+  MLB's own `edge_distance`.
+- This matters practically: the bulk Statcast CSV (`pybaseball.statcast()`)
+  exports `vx0/vy0/vz0` and `ax/ay/az` but **no `x0/y0/z0` anchor**, so the
+  re-solve is impossible there. `plate_x`/`plate_z` are the only route, and
+  they are the right answer anyway.
+- The CSV's `plate_x`/`plate_z` are byte-identical to the Savant `gf` feed's,
+  and CSV `at_bat_number` matches gf `ab_number` with no offset.
+
 **Challenge rules (these drive the decision model):**
 - Two challenges per team to start the game
 - A CORRECT challenge is retained — it costs nothing

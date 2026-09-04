@@ -14,6 +14,63 @@ from pathlib import Path
 
 DB_PATH = "data/baseball.duckdb"
 
+# walk: (r1,r2,r3) -> (r1',r2',r3'), runs forced in
+WALK_ADVANCE = {
+    (False, False, False): ((True, False, False), 0),
+    (True,  False, False): ((True, True,  False), 0),
+    (False, True,  False): ((True, True,  False), 0),
+    (False, False, True):  ((True, False, True),  0),
+    (True,  True,  False): ((True, True,  True),  0),
+    (True,  False, True):  ((True, True,  True),  0),
+    (False, True,  True):  ((True, True,  True),  0),
+    (True,  True,  True):  ((True, True,  True),  1),
+}
+
+
+def load_re_lookup(con, season=None):
+    """RE keyed by (balls, strikes, outs, r1, r2, r3). season=None pools all."""
+    where = f"WHERE game_year = {int(season)}" if season else ""
+    df = con.execute(f"""
+        SELECT balls, strikes, outs_when_up AS outs, r1, r2, r3,
+               AVG(runs_rest_of_inning) AS run_exp, COUNT(*) AS n
+        FROM pitch_state_with_target {where}
+        GROUP BY 1,2,3,4,5,6
+    """).df()
+    return {(int(r.balls), int(r.strikes), int(r.outs), bool(r.r1), bool(r.r2), bool(r.r3)):
+            r.run_exp for r in df.itertuples()}
+
+
+def re_after_ball(re, balls, strikes, outs, bases):
+    """Run expectancy after a ball, plus runs forced in. None if state unknown."""
+    if balls < 3:
+        return re.get((balls + 1, strikes, outs, *bases)), 0
+    new_bases, runs = WALK_ADVANCE[bases]
+    return re.get((0, 0, outs, *new_bases)), runs
+
+
+def re_after_strike(re, balls, strikes, outs, bases):
+    """Run expectancy after a called strike. Inning-ending K is worth 0."""
+    if strikes < 2:
+        return re.get((balls, strikes + 1, outs, *bases)), 0
+    if outs + 1 >= 3:
+        return 0.0, 0
+    return re.get((0, 0, outs + 1, *bases)), 0
+
+
+def flip_value(re, balls, strikes, outs, bases):
+    """
+    Runs at stake in flipping this call: RE(after ball) - RE(after strike),
+    from the BATTING team's perspective. Always >= 0 in expectation, and it is
+    the same quantity for either challenger -- the batting team gains it when a
+    strike is overturned to a ball, the fielding team prevents it when a ball is
+    overturned to a strike. Returns None if either state is missing.
+    """
+    rb, runs_b = re_after_ball(re, balls, strikes, outs, bases)
+    rs, runs_s = re_after_strike(re, balls, strikes, outs, bases)
+    if rb is None or rs is None:
+        return None
+    return (rb + runs_b) - (rs + runs_s)
+
 
 def build_db(con):
     con.execute(f"""
