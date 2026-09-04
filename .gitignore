@@ -1,0 +1,7 @@
+data/
+.venv/
+__pycache__/
+*.pyc
+raw_statsapi_*.json
+raw_savant_*.json
+.DS_Store

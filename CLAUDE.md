@@ -1,0 +1,194 @@
+# CLAUDE.md
+## ⚠️ Rules for editing this file
+
+This file is project memory. It is read at the start of every session and
+is expensive to reconstruct.
+
+- NEVER write this file in full. Use targeted edits that change only the
+  lines you intend to change.
+- NEVER shorten, summarize, condense, or "clean up" existing sections.
+  Length is not a problem here.
+- To add information, append a new section or add lines to an existing one.
+- Before editing, `git diff CLAUDE.md` afterward and confirm the change is
+  additive. If the diff shows removed lines you did not intend to remove,
+  revert with `git checkout -- CLAUDE.md` and redo the edit.
+- Commit this file after every change: `git add CLAUDE.md && git commit -m "context: <what changed>"`
+## Project
+
+MLB ABS (Automated Ball-Strike) challenge policy analysis. 2026 is the first
+season with the challenge system. Goal: build a model of the *optimal* challenge
+policy, compare it to how players actually behave, and quantify how many runs
+teams leave on the table. Deploy as a public web app.
+
+This is a portfolio project for baseball operations internship applications.
+That means: clean repo, readable code, a real README, and a deployed link matter
+as much as the analysis being correct.
+
+## Current status
+
+- [ ] Part 0: Statcast pull + DuckDB load
+- [x] Step 1.1: locate pitch-level ABS challenge data (Savant `gf` feed confirmed
+      primary source; see Data sources below)
+- [ ] Step 1.2: plate-midpoint geometry + ABS zone model (ball-radius correction
+      confirmed and implemented in `src/geometry.py`; measured-height back-out
+      done for 364 batters via `scripts/verify_ball_radius.py` ->
+      `data/measured_heights.parquet`; still need to wire this into the full
+      pitch-level classification pipeline)
+- [ ] Step 1.3: run expectancy by count and base-out state
+- [ ] Step 1.4: decision model (backward induction)
+- [ ] Step 1.5: findings + charts
+- [ ] Part 4: deploy
+
+Update this checklist as things land.
+
+## Key domain facts (don't re-derive these)
+
+**ABS zone geometry:**
+- Width: 17 inches, same as home plate
+- Top: 53.5% of the batter's *measured* height without cleats
+- Bottom: 27% of measured height
+- Location captured as the ball crosses the **middle** of the plate, NOT the front
+- **Ball-radius rule (confirmed 2026-09-04):** ABS applies "any part of the ball
+  over the zone." A trajectory solve gives the ball's CENTER; MLB's edge_distance
+  is measured from the ball's EDGE. The two differ by exactly one ball radius,
+  `BALL_RADIUS_FT = 0.1208` (2.9" diameter ball). Verified via regression on
+  1,136 side-bound (height-independent) real challenges from 2026-04-01 to
+  2026-05-15: slope = 0.9999, intercept = 0.1208 ft = 1.450 in, R^2 = 1.0000,
+  mean residual = 0.000 in. Without this correction, naive center-based zone
+  classification misclassifies inside/outside on ~27% of borderline challenges
+  (3 of 11 in the first small sample); with it, 11/11. Implemented as
+  `center_distance_to_zone()` + `ball_edge_distance()` in `src/geometry.py`
+  (kept as two separate named outputs — do not collapse them).
+
+**Statcast coordinate system:**
+- `y = 0` is the back point of home plate
+- `plate_x` / `plate_z` are reported at the FRONT of the plate (`y = 17/12 ft`)
+- Middle of plate is `y = 8.5/12 ft` — must re-solve the trajectory to get there
+- Use `x0,y0,z0 / vx0,vy0,vz0 / ax,ay,az` with constant-acceleration kinematics
+
+**Challenge rules (these drive the decision model):**
+- Two challenges per team to start the game
+- A CORRECT challenge is retained — it costs nothing
+- Rights are lost after TWO INCORRECT challenges
+- One challenge restored at the start of each extra inning
+- Only batters, pitchers, and catchers may initiate
+- **Not permitted when a position player is pitching** — exclude these PAs from
+  the challengeable denominator
+
+**2026 league baselines (for sanity-checking):**
+- Overall overturn rate: 53%
+- Batters: 45% · Fielders (C/P): 59%
+- ~1,730 attempts as of the reference snapshot
+
+The correct/incorrect asymmetry is the core insight. The expected cost of a
+challenge is `P(wrong) x (value of one incorrect-challenge token)`, NOT
+`P(anything) x cost`. If optimal thresholds come out well below 50%, the ~53%
+observed success rate means players are under-challenging.
+
+## Data sources
+
+1. **Statcast pitch data** — `pybaseball.statcast()`, cached to
+   `data/statcast_{year}.parquet`, loaded into `data/baseball.duckdb`.
+   NOTE: Statcast revises data retroactively. Re-pulling must be idempotent.
+
+2. **ABS challenge records** — NOT exposed in the Statcast CSV export (verified).
+   Candidate sources, in order:
+   - `baseballsavant.mlb.com/gf?game_pk={id}` — Savant game feed JSON
+   - `statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live` — Stats API play-by-play
+   - Savant + Baseball Reference aggregate leaderboards (fallback)
+
+   Ground-truth anchor for field discovery: first regular-season challenge was
+   2026-03-25, Yankees @ Giants, 4th inning, Jose Caballero vs Logan Webb,
+   first-pitch called strike, call UPHELD.
+
+   **Confirmed: Savant `gf` is the primary source.** Every pitch object in
+   `team_home`/`team_away` (etc.) carries `is_abs_challenge` (bool); when true,
+   an `abs_challenge` object with `is_overturned`, `challenge_team_id`,
+   `challenging_player_id`/`type`, and `edge_distance`/`edge_distance_calc`.
+   It's already joined to full trajectory data (`x0,y0,z0,vx0,vy0,vz0,ax,ay,az`,
+   `plate_x`, `plate_z`, `call_name`), so loop `game_pk` over this feed rather
+   than Stats API. Stats API `feed/live` is a cross-check/backfill: challenged
+   `playEvents` carry a `reviewDetails` object (`isOverturned`, `reviewType`,
+   `challengeTeamId`, `player`), absent on non-challenged pitches; `boxscore.info`
+   also has a human-readable `"ABS Challenge"` summary line per game.
+
+   **Confirmed join keys** (verified against the same real pitch across both
+   feeds): Savant `play_id` is byte-identical to Stats API `playId`. Savant
+   `ab_number` = Stats API `atBatIndex` + 1 (Savant is 1-indexed, Stats API
+   0-indexed). `(game_pk, at_bat_number, pitch_number)` also works as a join key.
+
+   **`edge_distance` coverage: challenge-only.** Checked 93 called (ball/strike)
+   pitches in one game that were NOT challenged — zero of them carry an
+   `abs_challenge` key at all (not even a null placeholder). So `edge_distance`
+   cannot be a model feature for scoring unchallenged pitches (that's the whole
+   point of the project — conditioning on a field that only exists where a
+   challenge happened is selection on the dependent variable). Use it as a
+   validation set only, for pitches that were actually challenged.
+
+   **Gotcha: Savant's `call_name` is the FINAL (post-review) call, not the
+   original on-field call.** On an overturned pitch, `call_name` already
+   reflects the new ruling — e.g. a challenge that flips a strike to a ball
+   shows `call_name: "Ball"`, `is_overturned: true`. Confirmed via
+   `challenging_player_type`: every `call_name="Strike", is_overturned=true`
+   row was challenged by a catcher/pitcher (they only challenge balls, hoping
+   for a strike — so the original call was Ball); every
+   `call_name="Strike", is_overturned=false` row was challenged by a batter
+   (batters only challenge strikes). To recover the original on-field call:
+   same as `call_name` if `is_overturned=false`, the opposite if `true`.
+
+   **`edge_distance` has no sign convention — it's an unsigned magnitude.**
+   Checked 13 real challenges spanning all 4 combinations of
+   original-call x overturned/confirmed: `edge_distance` was positive in
+   every single case regardless of whether the pitch was actually inside or
+   outside the zone. It's `|distance to boundary|`, not a signed inside/outside
+   indicator. Units are feet (not inches) — confirmed by regression, see the
+   ball-radius entry above.
+
+3. **Batter heights** — `statsapi.mlb.com/api/v1/people/{id}`. Listed height may
+   differ from ABS "measured height without cleats". **Update:** the gap is
+   much smaller than assumed. Backed out actual measured height per batter by
+   solving the radius-corrected zone equation against real challenged pitches
+   (`scripts/verify_ball_radius.py` -> `data/measured_heights.parquet`, 364
+   batters with >=1 usable vertical challenge, 203 with >=3). Listed-vs-measured
+   diff for batters with >=3 pitches: mean 0.006 in, median 0.043 in, p95 0.465
+   in. Listed height is a fine proxy for this project; don't over-invest here.
+
+## Conventions
+
+- Python 3.11, venv at `.venv`
+- Analysis code in `src/`, one module per concern
+- Notebooks in `notebooks/` are exploration ONLY — nothing load-bearing lives there
+- `data/` is gitignored. Never commit parquet files.
+- Precomputed app data goes in `app/data/` and must stay under ~20 MB
+- Prefer DuckDB SQL over pandas for aggregations (this project doubles as SQL practice)
+- Mirror lefty pitchers into a single handedness frame before any modeling
+- When you notice a possible systematic explanation for a discrepancy
+  (a missing constant, an offset, a unit error), TEST IT IMMEDIATELY.
+  Compute the residuals and check whether they cluster. Never file a
+  hypothesis as a footnote and move on.
+- When reporting numbers that should agree, always report the offset
+  or ratio between them, not just the two values side by side.
+- Every `requests.get` in this project must go through
+  `src/net.py::get_with_retries` (timeout=30, retry-with-backoff). A request
+  with no timeout can hang a script indefinitely with no visible symptom.
+  Don't name a local module `http.py` / `http/` — it shadows the stdlib
+  `http` package that `requests` itself depends on (`http.client`), which
+  breaks every request the moment `src/` is ahead of stdlib on `sys.path`.
+## Working preferences
+
+- Explain the *why* behind non-obvious choices, especially statistical ones —
+  I'm learning this material, not just shipping it
+- When there's a modeling judgment call, say what the alternatives were
+- Flag leakage risks aggressively (e.g. group CV folds by pitcher, not randomly)
+- Don't silently widen scope. New ideas go in `IDEAS.md`; v1 ships first.
+- If something can't be verified, say so rather than guessing at field names
+
+## Commands
+
+```bash
+source .venv/bin/activate
+python src/ingest.py                  # pull Statcast (slow, cached)
+python src/build_db.py                # load parquet -> DuckDB
+python scripts/build_app_data.py      # precompute app inputs
+streamlit run app/streamlit_app.py    # local app
+```
