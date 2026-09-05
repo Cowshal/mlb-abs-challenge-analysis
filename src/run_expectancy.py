@@ -8,8 +8,14 @@ half-inning. State = (balls, strikes, outs_when_up, base_state), where
 base_state is one of the 8 combinations of runners on 1st/2nd/3rd.
 
 Run: python src/run_expectancy.py
+
+`duckdb` is imported lazily inside main() rather than at module level: this
+module also exports pure, dependency-free helpers (flip_value, re_after_ball,
+re_after_strike, WALK_ADVANCE) that the Streamlit app imports directly, and
+the deployed app's requirements.txt deliberately excludes duckdb (the app
+must not touch it -- see CLAUDE.md). A top-level `import duckdb` would break
+that import for the app even though nothing the app uses needs it.
 """
-import duckdb
 from pathlib import Path
 
 DB_PATH = "data/baseball.duckdb"
@@ -174,6 +180,7 @@ def cross_check_vs_delta_run_exp(con):
 
 
 def main():
+    import duckdb
     Path("data").mkdir(exist_ok=True)
     con = duckdb.connect(DB_PATH)
     build_db(con)
