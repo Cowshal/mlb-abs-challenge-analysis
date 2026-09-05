@@ -6,6 +6,7 @@ these files and does nothing but filter and plot.
 
 Run: python scripts/build_app_data.py
 """
+import ast
 import sys
 from pathlib import Path
 
@@ -72,6 +73,149 @@ def validate_provenance():
     return model_version, generated_at
 
 
+# Three conventions this project relies on that have each been silently
+# violated at least once (a bare `data/` .gitignore match that would have
+# excluded app/data/, a top-level `import duckdb` that broke the deployed
+# app, and a missing dedup that quietly double-counted 26 games) -- each
+# time, caught only by someone happening to look. Same shape of failure:
+# a rule that holds almost everywhere, with no check enforcing "everywhere."
+# These three guards check the current instances of that pattern directly,
+# not the specific historical bugs, so a next occurrence of any of them
+# fails the build instead of shipping.
+
+def verify_no_duplicate_challenges():
+    """The dedup bug's root cause (collect_abs_challenges.py fetching a
+    game_pk twice) is fixed at the source, so this file should already be
+    clean -- this just confirms that rather than assuming it forever."""
+    path = Path("data/abs_challenges.parquet")
+    if not path.exists():
+        raise RuntimeError("data/abs_challenges.parquet is missing -- run "
+                           "scripts/collect_abs_challenges.py first.")
+    ch = pd.read_parquet(path)
+    dup_play_id = int(ch.duplicated("play_id").sum())
+    dup_key = int(ch.duplicated(["game_pk", "ab_number", "pitch_number"]).sum())
+    if dup_play_id or dup_key:
+        raise RuntimeError(
+            f"data/abs_challenges.parquet contains duplicate rows "
+            f"({dup_play_id} by play_id, {dup_key} by (game_pk, ab_number, "
+            f"pitch_number)). Every downstream script trusts this file to be "
+            f"deduplicated at the source (see collect_abs_challenges.py) and "
+            f"deliberately does not defend against duplicates itself -- "
+            f"re-run scripts/collect_abs_challenges.py rather than patching "
+            f"a consumer.")
+    print(f"no-duplicate-challenges OK: {len(ch):,} rows, all unique")
+
+
+_STDLIB = set(sys.stdlib_module_names)
+_LOCAL_SRC = Path(__file__).resolve().parent.parent / "src"
+# requirements.txt package name -> importable module name, for the cases
+# where they differ. Everything currently in requirements.txt happens to
+# import under its own name, so this is empty; it exists so a future
+# addition (e.g. pillow -> PIL) doesn't need a parallel special case
+# somewhere else.
+_PACKAGE_TO_IMPORT_NAME = {}
+
+
+def _module_level_import_names(source, path_for_errors):
+    """Top-level import names in `source`, skipping anything inside a
+    function/lambda body (lazy imports there are the sanctioned way to keep
+    a dev-only dependency out of this check -- see run_expectancy.py's own
+    `import duckdb` inside main())."""
+    tree = ast.parse(source, filename=str(path_for_errors))
+    names = set()
+
+    def walk(node):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                continue
+            if isinstance(child, ast.Import):
+                names.update(alias.name.split(".")[0] for alias in child.names)
+            elif isinstance(child, ast.ImportFrom):
+                if child.level == 0 and child.module:
+                    names.add(child.module.split(".")[0])
+            else:
+                walk(child)
+
+    walk(tree)
+    return names
+
+
+def verify_app_imports_under_requirements():
+    """Statically (no subprocess, no venv) verifies every module the deployed
+    app imports at module load time resolves to either the standard library,
+    a local src/ module (recursively checked the same way), or a package in
+    requirements.txt -- the exact set available on Streamlit Cloud. This is
+    what would have caught run_expectancy.py's top-level `import duckdb`
+    before it reached the live app instead of after."""
+    allowed_packages = set()
+    for line in Path("requirements.txt").read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        pkg = line.split("==")[0].split(">=")[0].split("[")[0].strip()
+        allowed_packages.add(_PACKAGE_TO_IMPORT_NAME.get(pkg, pkg).lower())
+
+    app_path = Path("app/streamlit_app.py")
+    seen_files = set()
+    to_check = [app_path]
+    bad = []
+    while to_check:
+        path = to_check.pop()
+        if path in seen_files:
+            continue
+        seen_files.add(path)
+        for name in _module_level_import_names(path.read_text(), path):
+            if name in _STDLIB or name in allowed_packages:
+                continue
+            local = _LOCAL_SRC / f"{name}.py"
+            if local.exists():
+                to_check.append(local)
+                continue
+            bad.append((path, name))
+
+    if bad:
+        detail = "\n".join(f"  {p}: imports `{n}`, which is not in the "
+                           f"standard library, requirements.txt, or src/"
+                           for p, n in bad)
+        raise RuntimeError(
+            "The deployed app imports something outside what "
+            f"requirements.txt provides:\n{detail}\n"
+            "If this is genuinely needed at runtime, add it to "
+            "requirements.txt. If it's a dev-only dependency (duckdb, scipy, "
+            "...), the module that imports it at the top level needs that "
+            "import moved inside the function that actually uses it -- see "
+            "run_expectancy.py's `import duckdb` inside main() for the "
+            "pattern.")
+    print(f"app-imports-under-requirements OK: checked {len(seen_files)} "
+          f"file(s) (app/streamlit_app.py + local src/ modules it imports)")
+
+
+def verify_all_provenance_stamped():
+    """Every file this script writes to app/data/ should carry a
+    model_version + generated_at -- the mechanism that makes a mixed-vintage
+    set of artifacts detectable by inspection instead of by a reader noticing
+    the numbers don't add up. Checked here, after everything is written,
+    rather than trusted file-by-file at each individual copy site."""
+    unstamped = []
+    for f in sorted(OUT.glob("*.parquet")):
+        df = pd.read_parquet(f, columns=None)
+        cols = df.columns
+        if "model_version" not in cols or "generated_at" not in cols:
+            unstamped.append(f.name)
+        elif len(df) and (df.model_version.isna().any() or df.generated_at.isna().any()):
+            unstamped.append(f.name)
+    if unstamped:
+        raise RuntimeError(
+            f"{len(unstamped)} file(s) in {OUT} have no (or a null) "
+            f"model_version/generated_at: {', '.join(unstamped)}. Every "
+            f"artifact the app loads should be stamped by the script that "
+            f"produces it -- see src/abs_policy.py's _stamp() for the "
+            f"pattern, or team_decomposition.py for a script that inherits "
+            f"its one input's stamp instead of minting a new one.")
+    print(f"provenance-stamps OK: all {len(list(OUT.glob('*.parquet')))} "
+          f"files in {OUT} carry a model_version and generated_at")
+
+
 def fetch_names(ids):
     names = {}
     ids = [int(i) for i in ids]
@@ -92,6 +236,8 @@ def team_of(inning_topbot, challenger):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
+    verify_no_duplicate_challenges()
+    verify_app_imports_under_requirements()
     model_version, generated_at = validate_provenance()
     con = duckdb.connect("data/baseball.duckdb")
 
@@ -109,7 +255,8 @@ def main():
                  "catcher_population", "catcher_summary",
                  "zone_heatmap", "zone_interaction", "zone_sigma",
                  "zone_sigma_sensitivity", "option_values",
-                 "re_2026", "posterior_lookup"):
+                 "re_2026", "posterior_lookup",
+                 "split_half", "team_significance", "team_sigma"):
         path = Path(f"data/{name}.parquet")
         if path.exists():
             pd.read_parquet(path).to_parquet(OUT / f"{name}.parquet", index=False)
@@ -210,6 +357,8 @@ def main():
           f"{total/1e6:.2f} MB total (budget 20 MB)")
     for f in sorted(OUT.glob("*.parquet")):
         print(f"  {f.name:32s} {f.stat().st_size/1e3:8.1f} KB")
+
+    verify_all_provenance_stamped()
 
 
 if __name__ == "__main__":
