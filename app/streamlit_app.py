@@ -4,12 +4,17 @@ ABS Challenge Optimizer -- 2026 MLB season.
 Loads precomputed parquet from app/data/ and does nothing but filter and plot.
 All modelling happens upstream in src/abs_policy.py.
 """
+import sys
 from pathlib import Path
 
 import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from geometry import center_distance_to_zone, ball_edge_distance, HALF_WIDTH
+from run_expectancy import flip_value
 
 DATA = Path(__file__).parent / "data"
 
@@ -66,7 +71,95 @@ catcher_summary = load("catcher_summary")
 zone_heatmap = load("zone_heatmap")
 zone_interaction = load("zone_interaction")
 zone_sigma_sensitivity = load("zone_sigma_sensitivity")
+option_values = load("option_values")
+re_2026 = load("re_2026")
+posterior_lookup = load("posterior_lookup")
 sigma["Role"] = sigma.side.map(ROLE_LABELS)
+
+
+@st.cache_data
+def re_lookup_dict():
+    return {(int(r.balls), int(r.strikes), int(r.outs), bool(r.r1), bool(r.r2), bool(r.r3)):
+            r.run_exp for r in re_2026.itertuples()}
+
+
+@st.cache_data
+def option_value_lookup():
+    return option_values.set_index("t")[["C_k0", "C_k1"]].to_dict("index")
+
+
+@st.cache_data
+def posterior_grids():
+    """(o_grid, p_grid) per role, sorted by o -- np.interp requires ascending x."""
+    out = {}
+    for role in ("batting", "fielding"):
+        sub = posterior_lookup[posterior_lookup.role == role].sort_values("o_ft")
+        out[role] = (sub.o_ft.values, sub.p_win.values)
+    return out
+
+
+# Median height across every 2026 challenge opportunity's height_ft (measured
+# where available, else listed) -- see data/challenge_opportunities.parquet.
+# The decision tool takes a game situation, not a specific batter, so it uses
+# a league-typical zone; an actual batter's zone top/bottom shifts by a few
+# inches around this.
+REPRESENTATIVE_HEIGHT_FT = 6.00
+
+
+def compute_dre(balls, strikes, outs, r1, r2, r3):
+    return flip_value(re_lookup_dict(), balls, strikes, outs, (r1, r2, r3))
+
+
+def half_inning_index(inning, half):
+    return (inning - 1) * 2 + (2 if half == "Bot" else 1)
+
+
+def option_value_at(t):
+    cmap = option_value_lookup()
+    last = cmap[max(cmap.keys())]
+    row = cmap.get(t, last)
+    return row["C_k0"], row["C_k1"]
+
+
+@st.cache_data
+def zone_click_grid(role, height_ft=REPRESENTATIVE_HEIGHT_FT, nx=22, nz=18):
+    """A grid of cells covering the zone plus a margin, each carrying the
+    model's P(call was wrong) for a click at that location -- shaded as a
+    heatmap and also the set of clickable targets for the selection."""
+    half_w_in = HALF_WIDTH * 12
+    top_in = 0.535 * height_ft * 12
+    bot_in = 0.270 * height_ft * 12
+    pad_x = half_w_in * 0.6
+    pad_z = (top_in - bot_in) * 0.4
+    x_edges = np.linspace(-half_w_in - pad_x, half_w_in + pad_x, nx + 1)
+    z_edges = np.linspace(bot_in - pad_z, top_in + pad_z, nz + 1)
+    xc = (x_edges[:-1] + x_edges[1:]) / 2
+    zc = (z_edges[:-1] + z_edges[1:]) / 2
+
+    # Outer loop over x-bins, inner loop over z-bins -- every array below uses
+    # this same repeat/tile pattern so row i is one consistent (x, z) cell.
+    x0, x1 = np.repeat(x_edges[:-1], nz), np.repeat(x_edges[1:], nz)
+    z0, z1 = np.tile(z_edges[:-1], nx), np.tile(z_edges[1:], nx)
+    xc_full, zc_full = np.repeat(xc, nz), np.tile(zc, nx)
+
+    d = ball_edge_distance(center_distance_to_zone(
+        xc_full / 12, zc_full / 12, np.full(xc_full.size, height_ft)))
+    o_grid, p_grid = posterior_grids()[role]
+    p_wrong = np.interp(d, o_grid, p_grid)
+    return pd.DataFrame({
+        "x0": x0, "x1": x1, "z0": z0, "z1": z1,
+        "xc": xc_full, "zc": zc_full, "p_wrong": p_wrong,
+    })
+
+
+def p_wrong_given_click(x_ft, z_ft, role, height_ft):
+    """Model's own estimate of P(the original call was wrong), given where the
+    player believes the pitch crossed the plate. This is exactly the quantity
+    the DP conditions its challenge decision on -- not a separate calculation."""
+    d = ball_edge_distance(center_distance_to_zone(
+        np.array([x_ft]), np.array([z_ft]), np.array([height_ft])))[0]
+    o_grid, p_grid = posterior_grids()[role]
+    return float(np.interp(d, o_grid, p_grid))
 
 st.title("Who's leaving runs on the table?")
 st.caption("Optimal ABS challenge policy vs. observed behaviour, 2026 MLB season "
@@ -100,7 +193,7 @@ c3.metric("Decision gap (per team-season)", f"+{decision_gap:.0f} runs",
           help="The actionable number: better decisions, identical information.")
 
 tab1, tab2, tab3 = st.tabs(
-    ["Decomposition", "Optimal threshold", "Runs left on the table"])
+    ["Decomposition", "Should I challenge?", "Runs left on the table"])
 
 # ---------------------------------------------------------------- tab 1
 with tab1:
@@ -328,70 +421,184 @@ with tab1:
                "one is worth more. It is not 'challenge more' — it is 'challenge different'.")
 
 # ---------------------------------------------------------------- tab 2
+PRESETS = {
+    "Full count, bases loaded, 2 outs": dict(
+        dt_inning=9, dt_half="Bottom", dt_balls=3, dt_strikes=2, dt_outs=2,
+        dt_r1=True, dt_r2=True, dt_r3=True, dt_k="0", dt_role="Batter"),
+    "0-0, bases empty, 0 outs": dict(
+        dt_inning=1, dt_half="Top", dt_balls=0, dt_strikes=0, dt_outs=0,
+        dt_r1=False, dt_r2=False, dt_r3=False, dt_k="0", dt_role="Batter"),
+    "Same full count — but you've already blown one challenge": dict(
+        dt_inning=9, dt_half="Bottom", dt_balls=3, dt_strikes=2, dt_outs=2,
+        dt_r1=True, dt_r2=True, dt_r3=True, dt_k="1", dt_role="Batter"),
+}
+
+
+def _apply_preset(name):
+    for k, v in PRESETS[name].items():
+        st.session_state[k] = v
+    st.session_state["dt_confidence"] = 50
+    st.session_state["dt_picked"] = None
+
+
 with tab2:
     st.markdown(
         "##### In short\n"
-        "**The more a call is worth, the less sure you need to be before "
-        "challenging it.** A full-count pitch with runners on can be worth over "
-        "half a run if you get it right — challenge that one even if you're only "
-        "**15% sure**. A first-pitch take with the bases empty is worth almost "
-        "nothing — don't challenge unless you're almost certain, **about 70%**."
+        "**Set up a real game situation below and get an actual recommendation** "
+        "— not just a curve. The tool tells you the break-even confidence needed "
+        "to challenge, what's actually at stake, and a plain verdict: challenge "
+        "or hold. Click a spot in the strike zone (or drag the slider) for the "
+        "model's own read on how likely the call was wrong."
     )
     st.divider()
 
-    st.subheader("When is a challenge worth it?")
-    st.markdown(
-        "Challenge when your confidence exceeds **p\\* = C / (ΔRE + C)**, where "
-        "**ΔRE** ('runs at stake') is the change in **run expectancy** — the "
-        "average number of runs a team can expect to score from this point in "
-        "the inning onward — caused by the call going one way instead of the "
-        "other, and **C** is the run value of one incorrect-challenge token. A "
-        "correct challenge is free, so the cost carries a factor of (1 − p), not "
-        "1. That asymmetry pushes the threshold far below the coin flip most "
-        "players seem to use."
-    )
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        inning = st.slider("Inning", 1, 9, 1)
-        half_display = st.radio("Half of the inning", ["Top", "Bottom"], horizontal=True)
+    st.markdown("**Try a preset, or set up your own situation below:**")
+    pcols = st.columns(len(PRESETS))
+    for pcol, name in zip(pcols, PRESETS):
+        pcol.button(name, on_click=_apply_preset, args=(name,), width='stretch')
+
+    st.subheader("Game situation")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        inning = st.number_input("Inning", 1, 15, 1, key="dt_inning")
+        half_display = st.radio("Half", ["Top", "Bottom"], horizontal=True, key="dt_half")
         half = "Bot" if half_display == "Bottom" else "Top"
-        remaining = st.radio("Challenges remaining", [2, 1], horizontal=True)
-    sub = surf[(surf.inning == inning) & (surf.half == half) &
-               (surf.challenges_remaining == remaining)]
-    with col2:
-        st.altair_chart(
-            alt.Chart(sub).mark_line(size=3, color=COLOR_OPTIMAL).encode(
-                x=alt.X("dre:Q", title="Value of the call, in runs (ΔRE)"),
-                y=alt.Y("p_star:Q", title="Minimum confidence to challenge",
-                        scale=alt.Scale(domain=[0, 1]), axis=alt.Axis(format="%")),
-                tooltip=[alt.Tooltip("dre:Q", title="Runs at stake"),
-                         alt.Tooltip("p_star:Q", title="Min. confidence", format=".0%")],
-            ).properties(height=380), width='stretch')
-    st.markdown(
-        "*What this means: the more a call is worth, the less sure you need to be "
-        "before challenging it — the line falls fast because a high-stakes call is "
-        "worth challenging on a hunch, while a low-stakes call is only worth it when "
-        "you're nearly certain.*"
-    )
-    st.markdown(
-        "**What \"confidence\" means here.** Confidence is the probability the call "
-        "was actually wrong — a number, not a feeling. The model knows exactly where "
-        "the pitch crossed the plate and exactly where the zone's edges were; the "
-        "player doesn't. He saw it once, from the side or from behind the plate, in "
-        "well under half a second. We didn't assume how precisely players judge "
-        "that — we measured it from *where they actually chose to challenge*: about "
-        "**2.75 inches** of error for batters and **1.99 inches** for catchers and "
-        "pitchers (how far off a player's read of the pitch's location tends to be). "
-        "So \"challenge at 15% confidence\" means: even if a pitch like this one is "
-        "actually the wrong call only 15% of the time, challenging it is still worth "
-        "it — because a correct challenge costs nothing, and this particular call is "
-        "worth about 0.6 runs if you're right."
-    )
-    st.caption(
-        "A full-count flip with the bases loaded is worth roughly 0.6–1.0 runs; a 0-0 "
-        "take with nobody on is worth under 0.05. The threshold moves enormously across "
-        "that range, which is why a single fixed habit cannot be right."
-    )
+    with c2:
+        balls = st.selectbox("Balls", [0, 1, 2, 3], key="dt_balls")
+        strikes = st.selectbox("Strikes", [0, 1, 2], key="dt_strikes")
+        outs = st.selectbox("Outs", [0, 1, 2], key="dt_outs")
+    with c3:
+        r1 = st.checkbox("Runner on 1st", key="dt_r1")
+        r2 = st.checkbox("Runner on 2nd", key="dt_r2")
+        r3 = st.checkbox("Runner on 3rd", key="dt_r3")
+
+    c4, c5 = st.columns(2)
+    with c4:
+        k_display = st.radio("Incorrect challenges already used this game",
+                             ["0", "1", "2 (exhausted)"], horizontal=True, key="dt_k",
+                             help="Only INCORRECT challenges cost you — a correct one "
+                             "is returned immediately and doesn't count against you.")
+    with c5:
+        role_display = st.radio("Who's challenging", ["Batter", "Catcher / pitcher"],
+                                horizontal=True, key="dt_role",
+                                help="Batters only challenge called strikes (hoping it "
+                                "was actually a ball); catchers and pitchers only "
+                                "challenge called balls (hoping it was actually a strike).")
+    role = "batting" if role_display == "Batter" else "fielding"
+
+    dre = compute_dre(balls, strikes, outs, r1, r2, r3)
+    t = half_inning_index(inning, half)
+    C0, C1 = option_value_at(t)
+
+    st.divider()
+
+    if k_display.startswith("2"):
+        st.error(
+            "**Rights exhausted.** Two incorrect challenges are gone — there is "
+            "no option value left to protect, and no challenge is available "
+            "regardless of confidence."
+        )
+    elif dre is None:
+        st.warning("That exact combination of count/outs/bases doesn't occur in the "
+                   "2026 data (e.g. 4 balls) — pick a valid count.")
+    else:
+        k = int(k_display)
+        C = C0 if k == 0 else C1
+        p_star = C / (dre + C)
+
+        st.subheader("Where do you think the pitch was?")
+        st.caption(
+            "Click a spot in the zone for the model's own estimate of P(the call "
+            "was wrong), based on how precisely a player in this role actually "
+            "reads pitch location (measured from real 2026 challenges, never "
+            "assumed). Or skip straight to the confidence slider below."
+        )
+
+        height_ft = REPRESENTATIVE_HEIGHT_FT
+        half_w_in, top_in, bot_in = HALF_WIDTH * 12, 0.535 * height_ft * 12, 0.270 * height_ft * 12
+        grid = zone_click_grid(role)
+        click = alt.selection_point(name="pt", fields=["xc", "zc"], nearest=True,
+                                    on="click", empty=False)
+        heat = alt.Chart(grid).mark_rect().encode(
+            x=alt.X("x0:Q", title="Horizontal location (inches from the plate's center)",
+                    scale=alt.Scale(domain=[grid.x0.min(), grid.x1.max()])),
+            x2="x1:Q",
+            y=alt.Y("z1:Q", title="Height off the ground (inches)",
+                    scale=alt.Scale(domain=[grid.z0.min(), grid.z1.max()])),
+            y2="z0:Q",
+            color=alt.Color("p_wrong:Q", title="Model's P(wrong)",
+                            scale=alt.Scale(scheme="oranges", domain=[0, 1]),
+                            legend=alt.Legend(format="%")),
+            tooltip=[alt.Tooltip("xc:Q", title="Horizontal (in)", format=".1f"),
+                     alt.Tooltip("zc:Q", title="Height (in)", format=".1f"),
+                     alt.Tooltip("p_wrong:Q", title="P(wrong)", format=".0%")],
+        ).add_params(click).properties(height=360)
+        outline = alt.Chart(pd.DataFrame([
+            {"x0": -half_w_in, "x1": half_w_in, "z0": bot_in, "z1": top_in}
+        ])).mark_rect(fill=None, stroke="#0F172A", strokeWidth=2).encode(
+            x="x0:Q", x2="x1:Q", y="z1:Q", y2="z0:Q")
+
+        event = st.altair_chart(heat + outline, on_select="rerun", key=f"zone_chart_{role}")
+        picked = None
+        try:
+            sel = event.selection.get("pt") if hasattr(event, "selection") else \
+                event["selection"].get("pt")
+            if sel:
+                picked = (sel[0]["xc"], sel[0]["zc"])
+        except Exception:
+            picked = None
+
+        if picked is not None and st.session_state.get("dt_picked") != picked:
+            st.session_state["dt_picked"] = picked
+            model_p_wrong = p_wrong_given_click(picked[0] / 12, picked[1] / 12, role, height_ft)
+            st.session_state["dt_confidence"] = round(model_p_wrong * 100)
+            st.rerun()
+
+        st.subheader("How confident are you the call was wrong?")
+        confidence = st.slider("Your confidence (%)", 0, 100, 50, key="dt_confidence")
+        p_conf = confidence / 100.0
+
+        st.divider()
+        st.subheader("Recommendation")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Break-even confidence needed", f"{p_star:.0%}",
+                  help="Challenge iff your confidence the call was wrong exceeds this.")
+        m2.metric("Runs at stake if the call flips (ΔRE)", f"{dre:.3f}")
+        m3.metric(f"Option value risked, C({k})", f"{C:.3f} runs",
+                  help="The run-cost of one incorrect challenge, right now.")
+
+        st.caption(
+            f"How that option value changes with challenges remaining: right now "
+            f"(0 used) an incorrect challenge costs **C(0) = {C0:.3f} runs**; if "
+            f"you'd already used one, the same mistake would cost "
+            f"**C(1) = {C1:.3f} runs** — worse, since a second incorrect challenge "
+            f"leaves nothing in reserve for the rest of the game."
+        )
+
+        challenge = p_conf > p_star
+        if challenge:
+            st.success(
+                f"### CHALLENGE\n"
+                f"Your **{confidence}%** confidence clears the **{p_star:.0%}** "
+                f"break-even needed here — this call is worth challenging even "
+                f"though you're not sure."
+            )
+        else:
+            st.warning(
+                f"### HOLD\n"
+                f"Your **{confidence}%** confidence falls short of the **{p_star:.0%}** "
+                f"break-even needed here — not worth risking an incorrect challenge "
+                f"on this call."
+            )
+
+        if picked is not None:
+            st.caption(
+                f"Model's own read at the point you clicked "
+                f"({picked[0]:.1f} in horizontal, {picked[1]:.1f} in high): "
+                f"P(call was wrong) ≈ {p_wrong_given_click(picked[0]/12, picked[1]/12, role, height_ft):.0%}. "
+                f"Assumes a league-typical batter (6'0\"); an individual batter's "
+                f"actual zone shifts this by a few inches."
+            )
 
 # ---------------------------------------------------------------- tab 3
 with tab3:

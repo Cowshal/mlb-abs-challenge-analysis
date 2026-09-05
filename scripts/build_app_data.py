@@ -108,7 +108,8 @@ def main():
     for name in ("team_decomposition", "player_skill_test", "catcher_check",
                  "catcher_population", "catcher_summary",
                  "zone_heatmap", "zone_interaction", "zone_sigma",
-                 "zone_sigma_sensitivity", "option_values"):
+                 "zone_sigma_sensitivity", "option_values",
+                 "re_2026", "posterior_lookup"):
         path = Path(f"data/{name}.parquet")
         if path.exists():
             pd.read_parquet(path).to_parquet(OUT / f"{name}.parquet", index=False)

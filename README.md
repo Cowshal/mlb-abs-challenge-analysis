@@ -16,6 +16,13 @@ The mechanism is not volume. **The optimal policy wins a *smaller* share of its
 challenges than teams currently do (43% vs 54%) and still nets more runs, because
 the calls it picks are worth more.** Challenge different, not challenge more.
 
+**The "Should I challenge?" tab in the live app turns this into an actual
+decision tool** — set up any game situation (count, outs, bases, inning,
+challenges already spent) and role, click where you think the pitch was, and
+get a break-even confidence, the runs at stake, the option value being risked,
+and a plain challenge-or-hold verdict. Not a description of last season; a tool
+for the moment the count runs full.
+
 That policy result rests on getting the zone geometry right, and the geometry
 finding is the more surprising number in this repo: ABS rules a pitch a strike if
 *any part of the ball* — not its center — crosses the zone. Measuring from the
@@ -290,6 +297,9 @@ python scripts/collect_abs_challenges.py        # 2026 challenge records
 python scripts/build_challenge_opportunities.py
 python scripts/estimate_perception_sigma.py
 python src/abs_policy.py                        # solve + decompose
+python scripts/zone_analysis.py                 # location-dependence test
+python scripts/zone_sigma_refit.py              # zone-sigma sensitivity check
+python scripts/build_decision_tool_data.py      # RE + posterior lookups for the app
 python scripts/build_app_data.py                # precompute for the app
 
 streamlit run app/streamlit_app.py
