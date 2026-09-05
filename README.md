@@ -149,9 +149,12 @@ a club could test that directly against its own receiving data.
 
 ## Running it
 
+`requirements.txt` holds only what the deployed app needs (4 packages);
+`requirements-dev.txt` holds the full pipeline.
+
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 python src/ingest.py                            # pull 2024-2026 Statcast
 python src/run_expectancy.py                    # RE table -> DuckDB
