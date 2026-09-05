@@ -173,16 +173,6 @@ should challenge more. Any analysis that fits a single noise parameter
 across both roles will get this backwards, with no way to tell from the fit
 alone that it's happened.
 
-One sigma per role also assumes accuracy doesn't depend on *where* the pitch
-was — I tested that rather than assume it. Splitting the zone into a 3×3 grid
-and checking whether the role gap varies by location: it does, hard (p <
-0.0001, a 38-point swing across well-populated regions), including a real
-reversal on pitches up over the heart of the plate, where batters read the
-call better than the battery does. But refitting sigma per region and
-re-running the whole model changes the headline decision gap by +0.02
-runs/season — the location-independence assumption is wrong cell by cell and
-harmless in aggregate.
-
 ## A repeatable skill, or just who was on the roster?
 
 Once you can rank teams by runs left on the table, the obvious next move is
