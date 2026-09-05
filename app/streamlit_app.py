@@ -7,6 +7,7 @@ All modelling happens upstream in src/abs_policy.py.
 from pathlib import Path
 
 import altair as alt
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -55,6 +56,9 @@ surf = load("threshold_surface")
 per_team = load("per_team")
 per_batter = load("per_batter")
 sigma = load("perception_sigma")
+split_half = load("split_half")
+team_sigma = load("team_sigma")
+team_sig_test = load("team_significance")
 sigma["Role"] = sigma.side.map(ROLE_LABELS)
 
 st.title("Who's leaving runs on the table?")
@@ -387,6 +391,88 @@ with tab3:
         )
         st.caption("Batting-role challenges only — a batter can only challenge called "
                    "strikes against himself.")
+
+    # ------------------------------------------------ is it a repeatable skill?
+    st.divider()
+    st.subheader("Is this a repeatable team skill?")
+    st.markdown(
+        "##### In short\n"
+        "**We can't tell yet, and we're not going to guess.** Teams differ more "
+        "than pure chance alone would produce in a single season — but when we "
+        "split each team's season in half and checked whether teams that were "
+        "good in the first half were also good in the second half, the "
+        "relationship was too weak and too uncertain to call it a real, stable "
+        "skill. Read the team table above as a snapshot of 2026, not a "
+        "permanent ranking of who's good at this."
+    )
+
+    sh = split_half.merge(team_sig_test[["team", "z", "p_bonferroni"]], on="team")
+    r_val = np.corrcoef(sh.h1_rate, sh.h2_rate)[0, 1]
+
+    col1, col2 = st.columns([3, 2])
+    with col1:
+        st.markdown("**Split-half reliability — the core test**")
+        base = alt.Chart(sh)
+        line = alt.Chart(pd.DataFrame({"x": [0.3, 0.75], "y": [0.3, 0.75]})).mark_line(
+            strokeDash=[4, 4], color="#94A3B8").encode(x="x", y="y")
+        pts = base.mark_circle(size=90, color=COLOR_OPTIMAL, opacity=0.75).encode(
+            x=alt.X("h1_rate:Q", title="Success rate, first half of season",
+                    axis=alt.Axis(format="%"), scale=alt.Scale(domain=[0.3, 0.75])),
+            y=alt.Y("h2_rate:Q", title="Success rate, second half of season",
+                    axis=alt.Axis(format="%"), scale=alt.Scale(domain=[0.3, 0.75])),
+            tooltip=["team", alt.Tooltip("h1_rate:Q", format=".1%"),
+                     alt.Tooltip("h2_rate:Q", format=".1%")],
+        )
+        st.altair_chart((line + pts).properties(height=320), width='stretch')
+        st.markdown(
+            f"*What this means: if a team's first-half success predicted its "
+            f"second-half success, the dots would hug the dashed diagonal. They "
+            f"don't, consistently enough to be sure — correlation r = {r_val:.2f}, "
+            f"95% CI crosses zero.*"
+        )
+    with col2:
+        st.markdown("**But the spread itself is real**")
+        st.markdown(
+            "Simulating 30 league-average teams at each team's real attempt "
+            "count, the *spread* in success rate we actually see is bigger than "
+            "chance alone produces (p = 0.003), and the same is true for runs "
+            "gained (p < 0.0001). One team, Cincinnati, is 3.4 standard "
+            "deviations above the league rate — still borderline-significant "
+            "(p ≈ 0.02) even after accounting for having checked all 30 teams."
+        )
+        st.markdown(
+            "*So: real variation exists in 2026. Whether it's a stable trait "
+            "that predicts next season, or a one-year cluster of borderline "
+            "calls going one team's way, isn't answered by this season alone.*"
+        )
+
+    st.markdown("**Perceptual precision, by team and role**")
+    st.markdown(
+        "Fitted the same way as the league-wide estimate — never from success "
+        "rate. Every one of 28 of 30 teams reads fielding challenges (catcher/"
+        "pitcher) more precisely than batting challenges, matching the "
+        "league-wide pattern. Whether the teams with sharper fielding reads "
+        "also win more of their challenges is a **weak, not-quite-significant** "
+        "relationship (r = −0.35, p = 0.06) — suggestive, not confirmation, "
+        "especially since the base question above is still open."
+    )
+    ts = team_sigma.pivot(index="team", columns="role", values="sigma_in").reset_index()
+    st.altair_chart(
+        alt.Chart(ts).mark_circle(size=70, color=COLOR_OPTIMAL, opacity=0.75).encode(
+            x=alt.X("batting:Q", title="Batting σ (inches)"),
+            y=alt.Y("fielding:Q", title="Fielding σ (inches)"),
+            tooltip=["team", alt.Tooltip("batting:Q", format=".2f"),
+                     alt.Tooltip("fielding:Q", format=".2f")],
+        ).properties(height=300) +
+        alt.Chart(pd.DataFrame({"x": [1, 4], "y": [1, 4]})).mark_line(
+            strokeDash=[4, 4], color="#94A3B8").encode(x="x", y="y"),
+        width='stretch')
+    st.caption(
+        "Points below the dashed line read fielding more precisely than batting "
+        "(28 of 30 teams). Full per-team figures, bootstrap confidence intervals, "
+        "and the underlying tests are in scripts/team_skill_test.py and "
+        "data/team_skill_test.parquet."
+    )
 
 st.divider()
 st.caption(
