@@ -383,3 +383,12 @@ st.caption(
     "variation in players' thresholds across counts, which inflates the information gap "
     "and deflates the decision gap — so the decision gap is a floor."
 )
+
+_policy_v = dec.model_version.iloc[0] if "model_version" in dec.columns else "unstamped"
+_policy_t = dec.generated_at.iloc[0] if "generated_at" in dec.columns else "unknown"
+_sigma_v = sigma.model_version.iloc[0] if "model_version" in sigma.columns else "unstamped"
+_sigma_t = sigma.generated_at.iloc[0] if "generated_at" in sigma.columns else "unknown"
+st.caption(
+    f"Policy model: `{_policy_v}` (generated {_policy_t}) · "
+    f"Perceptual-σ fit: `{_sigma_v}` (generated {_sigma_t})"
+)

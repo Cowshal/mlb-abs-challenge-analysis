@@ -12,6 +12,7 @@ Run: python scripts/estimate_perception_sigma.py
 Output: data/perception_sigma.parquet
 """
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +21,10 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from geometry import center_distance_to_zone, ball_edge_distance
 from perception import fit_sigma, likelihood_surface, challenge_probability
+
+# Separate from abs_policy.MODEL_VERSION -- this versions the sigma
+# ESTIMATION method, not the downstream policy model that consumes it.
+SIGMA_MODEL_VERSION = "perception_sigma_v1"
 
 
 def main():
@@ -107,6 +112,8 @@ def main():
             print("    WARNING: shallow in at least one direction -- possible ridge")
 
     out = pd.DataFrame(rows)
+    out["model_version"] = SIGMA_MODEL_VERSION
+    out["generated_at"] = datetime.now(timezone.utc).isoformat()
     out.to_parquet("data/perception_sigma.parquet", index=False)
     print("\nsaved data/perception_sigma.parquet")
     print(out.to_string(index=False))

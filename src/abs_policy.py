@@ -27,6 +27,8 @@ number of chances and the joint (p, dre) distribution are both empirical --
 sampled jointly, never independently, since borderline pitches and high-leverage
 situations are correlated.
 """
+from datetime import datetime, timezone
+
 import numpy as np
 import pandas as pd
 
@@ -34,6 +36,26 @@ N_REGULATION_HALF_INNINGS = 18
 MAX_HALF_INNINGS = 30  # allow extras out to the 15th
 N_SAMPLES = 4000
 SEED = 17
+
+# Bump this whenever the policy model itself changes (not for data refreshes
+# with the same model). "role_sigma_v1" = role-specific perceptual sigma
+# (batting vs fielding), fit from where players chose to challenge -- the
+# model behind every headline number in the README and writeup. A prior
+# version used one pooled sigma across roles, which the README documents as
+# reversing the catcher-vs-batter finding; that version must never be the one
+# a saved artifact silently reflects.
+MODEL_VERSION = "role_sigma_v1"
+
+
+def _stamp(df, generated_at):
+    """Attach model provenance to a DataFrame before it's saved. Every
+    parquet under data/ and app/data/ produced by this module carries these
+    two columns so a mixed-vintage set can be detected by inspection instead
+    of by a reader noticing the numbers don't add up."""
+    df = df.copy()
+    df["model_version"] = MODEL_VERSION
+    df["generated_at"] = generated_at
+    return df
 
 
 def load_pools(path="data/challenge_opportunities.parquet"):
@@ -272,15 +294,15 @@ def main():
     print("PASS" if bad.empty else f"FAIL at {len(bad)} half-innings:\n{bad}")
 
     print("\n=== optimal challenge threshold p* by flip value, start of game ===")
+    print("(diagnostic only, pooled single-sigma model -- NOT saved to disk and NOT")
+    print(" the model behind the app or the headline numbers. See decomposition()")
+    print(" below for the role-specific-sigma model, which owns data/option_values.parquet.)")
     s = ov[ov.t == 1].iloc[0]
     rows = []
     for dre in (0.05, 0.10, 0.15, 0.25, 0.40, 0.62, 1.00):
         rows.append({"dre_runs": dre,
                      "p*_k0": threshold(s.C_k0, dre), "p*_k1": threshold(s.C_k1, dre)})
     print(pd.DataFrame(rows).to_string(index=False))
-
-    ov.to_parquet("data/option_values.parquet", index=False)
-    print("\nsaved data/option_values.parquet")
 
     decomposition(q)
 
@@ -307,6 +329,8 @@ def observed_row(opp):
 
 
 def decomposition(q):
+    generated_at = datetime.now(timezone.utc).isoformat()
+
     opp = pd.read_parquet("data/challenge_opportunities.parquet")
     from geometry import center_distance_to_zone, ball_edge_distance
     opp["d"] = ball_edge_distance(center_distance_to_zone(
@@ -319,9 +343,17 @@ def decomposition(q):
           f"{ {k: round(v*12, 3) for k, v in player_sigma.items()} }")
 
     rows = [observed_row(opp)]
-    r_ply, _, _, fires_ply = run_scenario(opp, player_sigma, q,
-                                          label="optimal @ player sigma")
+    r_ply, ov_ply, _, fires_ply = run_scenario(opp, player_sigma, q,
+                                               label="optimal @ player sigma")
     rows.append(r_ply)
+
+    # THE canonical option-value table: role-specific sigma, the same model
+    # behind every other number in this function. This is the only place in
+    # the codebase that writes data/option_values.parquet -- previously
+    # main()'s pooled-sigma diagnostic also wrote here, silently overwriting
+    # this with a superseded model every run. See MODEL_VERSION above.
+    _stamp(ov_ply, generated_at).to_parquet("data/option_values.parquet", index=False)
+    print("saved data/option_values.parquet (role_sigma_v1, canonical)")
     r_ceil, _, _, fires_ceil = run_scenario(opp, HAWKEYE_SIGMA_FT, q,
                                             label=f"ceiling @ sigma={HAWKEYE_SIGMA_FT*12:.1f}in")
     rows.append(r_ceil)
@@ -374,11 +406,12 @@ def decomposition(q):
     sens = pd.DataFrame(sens)
     print(sens.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
 
-    res.to_parquet("data/policy_decomposition.parquet", index=False)
-    lev.to_parquet("data/leverage_comparison.parquet", index=False)
-    sens.to_parquet("data/ceiling_sensitivity.parquet", index=False)
-    fires_ply.to_parquet("data/optimal_fires.parquet", index=False)
-    print("\nsaved decomposition, leverage, sensitivity, and fires")
+    _stamp(res, generated_at).to_parquet("data/policy_decomposition.parquet", index=False)
+    _stamp(lev, generated_at).to_parquet("data/leverage_comparison.parquet", index=False)
+    _stamp(sens, generated_at).to_parquet("data/ceiling_sensitivity.parquet", index=False)
+    _stamp(fires_ply, generated_at).to_parquet("data/optimal_fires.parquet", index=False)
+    print("\nsaved decomposition, leverage, sensitivity, and fires "
+          f"(model_version={MODEL_VERSION}, generated_at={generated_at})")
 
 
 if __name__ == "__main__":
