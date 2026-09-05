@@ -205,7 +205,7 @@ def p_wrong_given_click(x_ft, z_ft, role, height_ft):
 try:
     st.title("Who's leaving runs on the table?")
     st.caption("Optimal ABS challenge policy vs. observed behaviour, 2026 MLB season "
-               "— 9,037 challenges across 2,136 games")
+               "— 9,032 challenges across 2,107 games")
 
     # ---------------------------------------------------------------- intro panel
     obs, ply, ceil = (dec.runs_per_team_game.iloc[i] for i in (0, 1, 2))
@@ -222,7 +222,7 @@ try:
         "ball-and-strike calls, using the same tracking system that draws the "
         "strike zone on TV. This page compares how players actually use their "
         "challenges to how they should, given only what a player can see in the "
-        "moment — and finds teams are leaving **about ten runs a season** on the "
+        "moment — and finds teams are leaving **about nine runs a season** on the "
         "table, not by challenging too rarely, but by challenging the wrong pitches."
     )
 
@@ -316,7 +316,8 @@ try:
         st.warning(
             "The remaining gap to a perfect-information ceiling is **not** coachable, and "
             "its size depends entirely on an assumed tracking precision that this dataset "
-            "cannot measure — we only ever observe Hawk-Eye's own output, never independent "
+            "cannot measure — we only ever observe Hawk-Eye's own output (MLB's camera-based "
+            "tracking system, the same one that draws the strike zone on TV), never independent "
             "ground truth. Shown below as a sensitivity curve rather than a single number."
         )
         st.altair_chart(
@@ -370,17 +371,22 @@ try:
                                   "decision_gap_vs_observed_per_season"])
         st.markdown(
             f"**The model above assumes one σ per role, everywhere in the zone. "
-            f"That assumption is measurably wrong, but the headline number survives it.** "
+            f"That assumption is measurably wrong, and refitting it moves the "
+            f"headline number by a real, if modest, amount.** "
             f"Splitting the same challenges into a 3×3 grid (in/middle/away × low/middle/high, "
             f"relative to the batter) and testing whether the role gap in success rate "
             f"varies by location: it does, well past chance "
-            f"(likelihood-ratio test, p {'< 0.0001' if p_val < 0.0001 else f'= {p_val:.4f}'}, "
+            f"(a likelihood-ratio test — a statistical test for whether a pattern this size "
+            f"could plausibly be chance — puts the odds of that at "
+            f"p {'< 0.0001' if p_val < 0.0001 else f'= {p_val:.4f}'}, essentially never; "
             f"swing of **{swing_pp:.0f} percentage points** across well-populated regions). "
             f"Refitting σ separately for each of the 9 regions and re-running the full "
-            f"decision model changes the headline decision gap by only "
-            f"**{move_season:+.2f} runs per team-season** — the errors from ignoring "
-            f"location roughly cancel out in aggregate, even though they don't cancel "
-            f"out region by region."
+            f"decision model changes the headline decision gap by "
+            f"**{move_season:+.2f} runs per team-season** — about "
+            f"{move_season/decision_gap*100:.0f}% of the decision gap itself, real "
+            f"enough that neither number should be read as precise to the tenth "
+            f"of a run, but not large enough to change which policy is better or "
+            f"by roughly how much."
         )
 
         order_v = ["high", "middle", "low"]
@@ -434,7 +440,7 @@ try:
         st.caption(
             "Breaking balls vs. fastballs showed no comparable split (batters: "
             "48.0% on fastballs vs. 50.0% on breaking/offspeed; battery: 58.2% vs. "
-            "57.4%) — pitch type doesn't appear to be a meaningful blind spot for "
+            "57.3%) — pitch type doesn't appear to be a meaningful blind spot for "
             "either role, unlike location. Full per-region figures and the sigma "
             "refit are in scripts/zone_analysis.py, scripts/zone_sigma_refit.py, "
             "and data/zone_sigma.parquet."
@@ -547,6 +553,36 @@ try:
             k = int(k_display)
             C = C0 if k == 0 else C1
             p_star = C / (dre + C)
+
+            st.markdown(
+                "**How this tool decides.** Challenge when your confidence the "
+                "call was wrong exceeds a break-even number: "
+                "**p\\* = C / (ΔRE + C)**. Two pieces feed that formula, both "
+                "computed below for the situation you set up:\n"
+                "- **ΔRE ('runs at stake')** — how much *run expectancy* "
+                "(the average runs a team can expect to score from this point "
+                "in the inning onward) changes if the call flips. A full-count "
+                "walk with the bases loaded is worth a lot; a first-pitch take "
+                "with nobody on is worth almost nothing.\n"
+                "- **Option value, C(k)** — what one *incorrect* challenge is "
+                "worth to hold onto, right now, for the rest of the game. It "
+                "isn't the value of this one pitch — it's the value of still "
+                "having the right to challenge later, which is why it depends "
+                "on how many incorrect challenges (k) are already spent.\n\n"
+                "Because a correct challenge is free, the cost side of the "
+                "decision carries a factor of (1 − confidence), not 1 — that "
+                "asymmetry is why the break-even number below is usually well "
+                "under 50%, not at it."
+            )
+            st.caption(
+                "\"Confidence\" throughout this tool means the probability the "
+                "call was actually wrong — a number, not a feeling. The model "
+                "knows exactly where the pitch crossed the plate; a player "
+                "doesn't. That's the whole reason the zone plot below exists: "
+                "it converts \"where you think the pitch was\" into a "
+                "probability, using how precisely a player in this role "
+                "actually reads location (measured from real 2026 challenges)."
+            )
 
             st.subheader("Where do you think the pitch was?")
             st.caption(
@@ -773,8 +809,11 @@ try:
 
         st.markdown("**Perceptual precision, by team and role**")
         st.markdown(
-            "Fitted the same way as the league-wide estimate — never from success "
-            "rate. Every one of 28 of 30 teams reads fielding challenges (catcher/"
+            "Fitted the same way as the league-wide estimate in the Decomposition "
+            "tab — σ (sigma) is how far off a player's read of the pitch tends to "
+            "be, in inches; smaller is more precise, and it's fit from *where* "
+            "players challenge, never from success rate. Every one of 28 of 30 "
+            "teams reads fielding challenges (catcher/"
             "pitcher) more precisely than batting challenges, matching the "
             "league-wide pattern exactly. This one doesn't depend on the "
             "reliability question below — it's a direct, team-by-team replication "
@@ -791,14 +830,39 @@ try:
             alt.Chart(pd.DataFrame({"x": [1, 4], "y": [1, 4]})).mark_line(
                 strokeDash=[4, 4], color="#94A3B8").encode(x="x", y="y"),
             width='stretch')
+        st.markdown(
+            "*What this means: each dot is one team. Points below the dashed "
+            "line read fielding more precisely than batting — 28 of 30 teams "
+            "do.*"
+        )
         st.caption(
-            "Points below the dashed line read fielding more precisely than batting "
-            "(28 of 30 teams). Whether teams with sharper fielding reads also win "
-            "more of their challenges is a weak, not-quite-significant relationship "
+            "Whether teams with sharper fielding reads also win more of their "
+            "challenges is a weak, not-quite-significant relationship "
             "(r = −0.35, p = 0.06) — suggestive, not confirmation. Full per-team "
             "figures, bootstrap confidence intervals, and the underlying tests are "
             "in scripts/team_skill_test.py and data/team_skill_test.parquet."
         )
+        with st.expander("What do \"r\", \"p\", and \"confidence interval\" mean? (this page uses them a lot below)"):
+            st.markdown(
+                "Three numbers show up throughout the rest of this tab. None of "
+                "them are as precise as they look — they're all here to answer "
+                "one question: **how much should you trust this pattern?**\n\n"
+                "- **Correlation (r)** runs from −1 to +1 and says how tightly "
+                "two things move together. Near 0 means no relationship; near "
+                "±1 means one reliably predicts the other. The r = −0.35 above "
+                "is a mild lean, not a strong link.\n"
+                "- **p-value (p)** is the probability you'd see a pattern this "
+                "strong purely by chance, if there were actually nothing going "
+                "on. Small (well under 0.05) means the pattern is probably "
+                "real; p = 0.06 above is right on that edge — leaning real, "
+                "not confirmed.\n"
+                "- **Confidence interval (CI)** is the range the true number "
+                "probably falls in, given how much data went into it. A wide "
+                "CI means the point estimate is shakier than it looks; a CI "
+                "that spans zero means the data can't rule out \"no effect at "
+                "all,\" which is exactly what happens with the team-level "
+                "result just below."
+            )
 
         st.divider()
         st.markdown("##### Is the cross-team spread in success itself a repeatable skill?")
@@ -834,8 +898,11 @@ try:
                 "count, the *spread* in success rate we actually see is bigger than "
                 "chance alone produces (p = 0.003), and the same is true for runs "
                 "gained (p < 0.0001). One team, Cincinnati, is 3.4 standard "
-                "deviations above the league rate — still borderline-significant "
-                "(p ≈ 0.02) even after accounting for having checked all 30 teams."
+                "deviations above the league rate — 3.4 times further from "
+                "average than the typical team-to-team wobble you'd expect "
+                "from randomness alone, which is a lot — still "
+                "borderline-significant (p ≈ 0.02) even after accounting for "
+                "having checked all 30 teams."
             )
             st.markdown(
                 "*So: real variation exists in 2026. Whether it's a stable trait "
@@ -860,8 +927,8 @@ try:
         st.markdown(
             "Same split-half design, run on individual challengers instead of "
             "teams, at a few different minimum-sample thresholds. At 8 or 10 "
-            "challenges per half, reliability (r ≈ 0.28–0.37) is clearly above the "
-            "team-level 0.24 and its 95% CI clears zero — unlike the team-level "
+            "challenges per half, reliability (r ≈ 0.32–0.38) is clearly above the "
+            "team-level 0.22 and its 95% CI clears zero — unlike the team-level "
             "test. The extremes are noisier (5: too lax a bar, mostly noise; 15: "
             "only 51 players left, underpowered) rather than a genuine reversal. "
             "*This doesn't prove an organizational skill — one season still can't "
@@ -960,7 +1027,7 @@ try:
             f"({_pct_equiv(_goodman.ci_lo):.0f}th–{_pct_equiv(_goodman.ci_hi):.0f}th) "
             f"sit on firmer ground, but even Goodman's low end isn't clearly "
             f"above average. This matches the player-level split-half "
-            f"reliability above (r ≈ 0.28–0.37): individual accuracy is real, "
+            f"reliability above (r ≈ 0.32–0.38): individual accuracy is real, "
             f"repeatable signal, but a noisy one — this season's exact ranking "
             f"of any one catcher would likely move some by next season."
         )
@@ -990,8 +1057,9 @@ try:
             width='stretch')
         st.markdown(
             f"Every dot is one of the 30 primary catchers, not just the top 5: x is "
-            f"how much of his team's edge is *quality* (success and leverage, with "
-            f"attempts held fixed) rather than volume; y is that same catcher's own "
+            f"how much of his team's edge is *quality* (success rate, and leverage — "
+            f"how many runs are riding on the calls it wins — with attempts held "
+            f"fixed) rather than volume; y is that same catcher's own "
             f"individual challenge success rate. They're correlated leaguewide "
             f"(r = {qual_r:.2f}, p = {qual_p:.3f}, n = {qual_n} teams) — not just a "
             f"pattern eyeballed in 5 points. **Cincinnati (CIN) and Colorado (COL)** "
