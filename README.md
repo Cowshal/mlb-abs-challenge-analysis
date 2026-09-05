@@ -165,6 +165,19 @@ volume and success rate would be circular, forcing the measured gap to zero by
 construction. As an out-of-fit check, the model reproduces the known 45%/59% split
 (48.9% / 57.9%) without ever seeing it.
 
+**One σ per role assumes accuracy is location-independent — it isn't, but the
+headline number doesn't care.** Splitting the zone into a 3×3 grid (in/middle/away
+× low/middle/high, relative to the batter) and testing whether the role gap
+varies by location: it does, hard (likelihood-ratio test p < 0.0001, a 38-point
+swing across well-populated regions), including a real reversal on pitches up
+over the heart of the plate — batters succeed 69% of the time there against 49%
+for the battery, the opposite of the pattern everywhere else (n=252 and 367,
+not noise). Refitting σ separately per zone region and re-running the whole
+decision model end to end moves the headline decision gap by **+0.02
+runs/team-season** — negligible. Read that as: don't trust the pooled model for
+any single high-middle call, but do trust it in aggregate. See
+`scripts/zone_analysis.py` and `scripts/zone_sigma_refit.py`.
+
 ## Method
 
 - **Zone geometry.** ABS applies the "any part of the ball over the zone" rule,
@@ -238,6 +251,15 @@ Both are wrong, and both were measured rather than assumed.
   meaningfully higher, and clear of zero. Treat "runs left on the table" by
   team as a 2026 snapshot of who was on the roster, not a proven ranking of
   organizations.
+- **Perceptual σ is assumed location-independent within a role; it isn't.**
+  Splitting challenges into a 3×3 zone grid and testing whether the
+  role gap in success rate varies by location: it does (likelihood-ratio
+  test, p < 0.0001, a 38-point swing across well-populated regions), including
+  a genuine reversal on pitches up over the heart of the plate, where batters
+  out-read the battery. Refitting σ per zone region and re-running the full
+  decision model moves the headline decision gap by only +0.02 runs/season —
+  the assumption is wrong locally but the aggregate number is robust to it.
+  See `scripts/zone_analysis.py` and `scripts/zone_sigma_refit.py`.
 
 ## What I'd do with team-internal data
 

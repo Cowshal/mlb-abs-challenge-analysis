@@ -63,6 +63,9 @@ player_skill_test = load("player_skill_test")
 catcher_check = load("catcher_check")
 catcher_population = load("catcher_population")
 catcher_summary = load("catcher_summary")
+zone_heatmap = load("zone_heatmap")
+zone_interaction = load("zone_interaction")
+zone_sigma_sensitivity = load("zone_sigma_sensitivity")
 sigma["Role"] = sigma.side.map(ROLE_LABELS)
 
 st.title("Who's leaving runs on the table?")
@@ -221,6 +224,86 @@ with tab1:
     )
     st.caption("Catchers and pitchers read the pitch ~28% more precisely than batters, "
                "consistent with seeing it from behind rather than from the side.")
+
+    st.subheader("Does perceptual noise vary by location, not just by role?")
+    lr_stat = zone_interaction.lr_stat.iloc[0]
+    p_val = zone_interaction.p_value.iloc[0]
+    swing_pp = zone_interaction.swing_pp.iloc[0]
+    move = zone_sigma_sensitivity.set_index("label")
+    move_season = (move.loc["optimal @ zone-region sigma (sensitivity)", "decision_gap_vs_observed_per_season"]
+                   - move.loc["optimal @ player sigma (role-only, canonical)",
+                              "decision_gap_vs_observed_per_season"])
+    st.markdown(
+        f"**The model above assumes one σ per role, everywhere in the zone. "
+        f"That assumption is measurably wrong, but the headline number survives it.** "
+        f"Splitting the same challenges into a 3×3 grid (in/middle/away × low/middle/high, "
+        f"relative to the batter) and testing whether the role gap in success rate "
+        f"varies by location: it does, well past chance "
+        f"(likelihood-ratio test, p {'< 0.0001' if p_val < 0.0001 else f'= {p_val:.4f}'}, "
+        f"swing of **{swing_pp:.0f} percentage points** across well-populated regions). "
+        f"Refitting σ separately for each of the 9 regions and re-running the full "
+        f"decision model changes the headline decision gap by only "
+        f"**{move_season:+.2f} runs per team-season** — the errors from ignoring "
+        f"location roughly cancel out in aggregate, even though they don't cancel "
+        f"out region by region."
+    )
+
+    order_v = ["high", "middle", "low"]
+    order_h = ["away", "middle", "in"]
+    zh = zone_heatmap[zone_heatmap.n >= 30].copy()
+    zh["Role"] = zh.challenger.map(ROLE_LABELS)
+    zh["success_pct"] = zh.success_rate * 100
+    heat_chart = alt.Chart(zh).mark_rect().encode(
+        x=alt.X("horiz_region:N", sort=order_h, title="Horizontal (batter-relative)"),
+        y=alt.Y("vert_region:N", sort=order_v, title="Vertical (zone-relative)"),
+        color=alt.Color("success_rate:Q", title="Success rate",
+                        scale=alt.Scale(scheme="blues", domain=[0.35, 0.70]),
+                        legend=alt.Legend(format="%")),
+        tooltip=["Role", "vert_region", "horiz_region", "n",
+                 alt.Tooltip("success_rate:Q", format=".1%")],
+        facet=alt.Facet("Role:N", title=None),
+    ).properties(width=220, height=220)
+    text_chart = alt.Chart(zh).mark_text(fontWeight="bold").encode(
+        x=alt.X("horiz_region:N", sort=order_h),
+        y=alt.Y("vert_region:N", sort=order_v),
+        text=alt.Text("success_pct:Q", format=".0f"),
+        color=alt.condition("datum.success_rate > 0.55", alt.value("white"), alt.value("black")),
+        facet=alt.Facet("Role:N", title=None),
+    ).properties(width=220, height=220)
+    st.altair_chart(heat_chart + text_chart, width='stretch')
+    st.caption(
+        "\"In\" = the horizontal third closest to the batter's body, \"away\" = "
+        "farthest, mirrored by batter handedness and verified against real data "
+        "(hit-by-pitch location averages −1.93 ft for right-handed batters and "
+        "+1.99 ft for left-handed batters — confirming which physical side is "
+        "\"inside\" for each). Cells with too few challenges to trust (the dead "
+        "center of the zone, where almost nobody challenges) are omitted."
+    )
+
+    st.markdown(
+        "**The standout cell: high-middle.** Everywhere else, catchers and "
+        "pitchers out-read batters by 6–17 points, matching the vantage-point "
+        "story above. On pitches up and over the heart of the plate, that "
+        "flips — batters succeed 69% of the time there versus 49% for the "
+        "battery, a genuine reversal, not noise (n=252 and 367). A pitch up in "
+        "the zone is arguably an easier read from the side (batters see it "
+        "rising out of the pitcher's hand) than from a crouch behind the plate "
+        "looking up through it."
+    )
+    st.markdown(
+        "*What this means: the pooled model is still the right headline number, "
+        "but it's a worse guide for any single high-middle call specifically — "
+        "there, if anything, trust the batter's read over the battery's, which "
+        "is the opposite of the general pattern.*"
+    )
+    st.caption(
+        "Breaking balls vs. fastballs showed no comparable split (batters: "
+        "48.0% on fastballs vs. 50.0% on breaking/offspeed; battery: 58.2% vs. "
+        "57.4%) — pitch type doesn't appear to be a meaningful blind spot for "
+        "either role, unlike location. Full per-region figures and the sigma "
+        "refit are in scripts/zone_analysis.py, scripts/zone_sigma_refit.py, "
+        "and data/zone_sigma.parquet."
+    )
 
     st.subheader("Challenge more, or challenge differently?")
     l = lev[lev.role == "all"][["Policy", "mean_dre", "median_dre", "runs_per_overturn", "success"]].copy()
