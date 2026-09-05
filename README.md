@@ -92,6 +92,35 @@ sitting on a right they almost never use. Full tables (`app/data/per_team.parque
 `app/data/per_batter.parquet`) are in the app's "Runs left on the table" tab,
 where the minimum-sample threshold is adjustable.
 
+Runs gained factors exactly as attempts × success rate × mean stake per
+overturn, and teams lead the table for different reasons. Cincinnati's edge is
+almost entirely *quality*: attempts are close to league average (+8%), but
+success rate is 17% above league and average stake per overturn is 13% above —
+together worth about **1.32×** a league-average team's output at Cincinnati's
+own volume. Minnesota's edge, by contrast, is almost entirely *volume*: 27%
+more attempts than league average at a essentially league-average success
+rate. Both end up near the top of the raw runs-left table; only one of them
+got there by picking good moments rather than taking more swings. Full
+per-team ratios (attempts/success/leverage, against league baseline) are in
+`data/team_decomposition.parquet`, built by `scripts/team_decomposition.py`.
+
+**Read the team table as a 2026 snapshot, not a proven skill ranking.**
+Splitting each team's season in half and correlating first-half success rate
+against second-half gives r = 0.24 across all 30 teams, 95% CI [-0.14, 0.55]
+— too weak and too uncertain to call challenge accuracy a stable, predictable
+team trait. At the same time, the actual spread in success rate and runs
+gained across teams is bigger than 30 teams drawing from the league rate at
+their own volume would produce by pure chance (p = 0.003 and p < 0.0001,
+respectively), and Cincinnati's success rate sits 3.4 standard deviations
+above the league mean — a result that survives correcting for having checked
+all 30 teams (Bonferroni-adjusted p ≈ 0.02). Put plainly: there is more real
+variation here than luck alone explains, but one season can't tell us whether
+it's a stable skill or a cluster of borderline calls that happened to go one
+team's way. We tested this rather than assume it either direction, and the
+honest answer is "not yet resolved" — see `scripts/team_skill_test.py` and the
+"Is this a repeatable team skill?" section in the app's "Runs left on the
+table" tab, which walks through all four checks.
+
 ## Catchers should challenge more than batters — not fewer
 
 Fitting each role's perceptual noise separately:
@@ -184,6 +213,11 @@ Both are wrong, and both were measured rather than assumed.
 - **One partial season** (through 2026-09-03) of a brand-new system, so
   first-year learning effects are unmodelled and the policy may be chasing a
   moving target.
+- **Team-level rankings are unconfirmed as a stable skill.** Split-half
+  reliability across the 30 teams is r = 0.24 (95% CI [-0.14, 0.55]) — too
+  weak to call challenge accuracy repeatable, even though the cross-team
+  spread itself is larger than binomial chance would produce. Treat
+  "runs left on the table" by team as a 2026 snapshot, not a proven ranking.
 
 ## What I'd do with team-internal data
 

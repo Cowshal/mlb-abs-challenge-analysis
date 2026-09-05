@@ -195,6 +195,57 @@ should challenge more. Any analysis that fits a single noise parameter
 across both roles will get this backwards, with no way to tell from the fit
 alone that it's happened.
 
+## Whether any of this is a repeatable skill, I honestly don't know
+
+Once you can rank teams by runs left on the table, the obvious next move is
+to publish the leaderboard and let people argue about who's good at this.
+Before doing that, I tried to break it.
+
+Runs gained factors exactly as attempts × success rate × mean stake per
+overturn, so the first thing worth checking is *why* a team leads — Cincinnati's
+edge, for instance, is almost entirely quality (17% above league on success
+rate, 13% above on stake per overturn, at essentially league-average volume),
+while Minnesota's is almost entirely volume (27% more attempts at a
+league-average success rate). Two very different paths to a similar-looking
+rank.
+
+That's a reason for caution, not a verdict, so I ran the actual test:
+split each team's season by date and correlate first-half success rate
+against second-half. If challenge accuracy is a real, stable team skill,
+teams that are good in April through June should still be good in July
+through September. Across all 30 teams, the correlation came back at
+r = 0.24, 95% confidence interval −0.14 to 0.55. That interval contains
+zero. I can't call this a repeatable skill from that number alone, and I'm
+not going to round it up to one because a leaderboard is more satisfying
+than an unresolved question.
+
+It isn't simple noise either. Simulating 30 league-average teams at each
+team's real attempt count, the spread you'd expect from binomial chance
+alone is smaller than the spread MLB teams actually showed in 2026 — for
+both success rate (p = 0.003) and runs gained (p < 0.0001). One team,
+Cincinnati, sits 3.4 standard deviations above the league rate, a gap that
+survives a Bonferroni correction for having checked all 30 teams
+(p ≈ 0.02). There is more real variation across teams than chance alone
+produces. It just isn't the kind of variation that clearly carries over
+from one half of a season to the other.
+
+I also fit perceptual noise separately for every team, split by role, to
+see whether the catcher-vantage-point story from the section above shows up
+team by team. It mostly does — 28 of 30 teams read fielding challenges more
+precisely than batting challenges, matching the league pattern exactly — and
+teams with sharper fielding reads show a weak lean toward higher success
+(r = −0.35, p = 0.06), in the direction the vantage-point story would
+predict. But "weak lean, not quite significant" is exactly the kind of
+result that's easy to over-read once you already believe the story, so I'm
+reporting it and stopping there rather than calling it confirmation.
+
+My actual conclusion: something real is happening across teams in 2026, and
+one season of data cannot tell us whether it's a stable organizational skill
+or a cluster of borderline calls that happened to break one team's way. The
+honest thing to publish is the team table labeled as a 2026 snapshot, plus
+the test that couldn't close the question — not a leaderboard with the
+uncertainty quietly dropped.
+
 ## What I'd want that I don't have
 
 Three things would sharpen this considerably. The first is per-player noise,
@@ -203,8 +254,11 @@ hides real variation between individual players, and a team could act on
 that directly. The second is a win-probability objective instead of runs;
 the model right now is indifferent to score, so it values a close-game
 challenge the same as one in a blowout, which isn't how anyone actually
-values one. The third is simply a second season of ABS data, since 2026 is
-the system's first year, and some of what looks like a stable strategy gap
+values one. The third is simply a second season of ABS data — it would turn
+the team-skill question above from a within-season split-half (noisy by
+construction, at ~300 challenges per team per half) into a genuine
+year-over-year correlation, which is the actual test that question needs.
+2026 is the system's first year, and some of what looks like a stable strategy gap
 could still be first-year unfamiliarity working itself out.
 
 ## Limitations, honestly
