@@ -282,6 +282,51 @@ left, here is *your* break-even confidence. Beyond that, catcher framing and
 challenge accuracy are plausibly the same underlying skill measured two ways, and
 a club could test that directly against its own receiving data.
 
+## Performance and reliability
+
+**Caching.** Every parquet read goes through one `@st.cache_data`-decorated
+`load()` — nothing else in the app touches disk. The decision tool's derived
+lookups (the RE dict, the option-value table, the per-role posterior grids,
+the clickable zone grid) are each cached too, keyed on their actual inputs
+(e.g. the zone grid recomputes only when role changes, not on every click).
+Audited the rest of the app for the failure mode this implies checking for —
+a widget interaction silently re-reading a file or re-running an aggregate —
+and found none: the only uncached per-interaction work left is trivial pandas
+filtering on tables of at most 392 rows (the batter-table attempt-count
+slider, a 30-row merge in the team-skill section), too cheap to be worth the
+complexity of caching.
+
+**Measured latency.** Timed via the browser's own performance API against the
+live deployed app (not a guess): a preset-button click on the decision
+tool — game situation changes, RE and option-value lookups run, the
+recommendation re-renders — takes **~1.0-1.4 seconds** end to end. That's
+Streamlit Cloud's websocket round-trip and script rerun, not local compute;
+every lookup involved is a cached dict/array access, sub-millisecond on its
+own. On a paid/dedicated instance this would likely drop closer to the
+websocket latency alone.
+
+**Failing gracefully.** A stale-parquet mismatch after a deploy (a new app
+build served against not-yet-refreshed data files) has now caused a raw
+`KeyError` stack trace on the live app twice. The whole app body is now
+wrapped in one top-level `try/except`: whatever rendered before the failure
+stays on screen, followed by a plain "something didn't load right, try
+refreshing" message with a collapsed technical-detail expander, instead of a
+traceback. Verified by deliberately dropping columns from a live data file
+and confirming the friendly message renders in place of the crash. This
+doesn't prevent the underlying deploy-sync race — that's Streamlit Cloud's
+timing, not this repo's — it just means a visitor who hits that window sees
+a sentence instead of a wall of Python.
+
+**Also found and fixed during this pass:** `app/streamlit_app.py` had picked
+up an import (`from run_expectancy import flip_value`) whose module did
+`import duckdb` at the top level — harmless locally, since duckdb is in the
+dev environment, but the deployed app's `requirements.txt` deliberately
+excludes duckdb (the app must never touch it), so the live site crashed with
+`ModuleNotFoundError` immediately on load. Fixed by moving that import inside
+the one function that actually needs it; verified in a from-scratch venv
+built from `requirements.txt` alone that the app's imports now succeed
+without duckdb installed at all.
+
 ## Running it
 
 `requirements.txt` holds only what the deployed app needs (4 packages);
