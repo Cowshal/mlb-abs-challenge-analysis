@@ -194,13 +194,20 @@ you use. See `scripts/zone_analysis.py` and `scripts/zone_sigma_refit.py`.
 - **Zone geometry.** ABS applies the "any part of the ball over the zone" rule,
   so the boundary is the rectangle inflated by a ball radius, not the rectangle
   itself. Restricted to a rigorously defined borderline band (within one ball
-  radius of the centre-based boundary, n=4,569 — half of all 9,032 season
-  challenges), measuring from the ball's centre instead of its edge disagrees
-  with MLB's actual ruling on **66.9%** of them — worse than a coin flip.
-  Across all 9,032 challenges unconditionally, the centre-only error rate is
-  34.2%. Validated against MLB's own `edge_distance` at R² = 1.0000 (slope
-  0.9999, intercept 0.1208 ft — exactly one ball radius); the corrected model
-  matches MLB's ruling 99.4% of the time.
+  radius of the centre-based boundary, n=4,599 — half of all 9,071 season
+  challenges — this is the raw challenge count, distinct from the 9,032
+  *opportunities* the decision model uses after filtering), measuring from
+  the ball's centre instead of its edge disagrees with MLB's actual ruling on
+  **67.3%** of them — worse than a coin flip. Across all 9,071 challenges
+  unconditionally, the centre-only error rate is 34.2%. Validated against
+  MLB's own `edge_distance` at R² = 1.0000 (slope 0.9999, intercept 0.1208 ft
+  — exactly one ball radius); the corrected model matches MLB's ruling 99.8%
+  of the time (`scripts/validate_ball_radius_classification.py` — written to
+  replace an earlier version of this figure that had no reproducing script;
+  the disagreement rates reproduced closely, 99.8% vs. a previously-quoted
+  99.4% did not, likely a difference in how batter height was sourced in the
+  original one-off computation — this script's number is the one to trust
+  going forward since it can be regenerated).
 - **Batter heights** backed out per batter by inverting the zone equation against
   real challenges. Listed heights turn out to be true heights rounded to the
   nearest inch (KS test against Uniform(±0.5 in): p = 0.49). Two independent
@@ -241,16 +248,16 @@ Both are wrong, and both were measured rather than assumed.
 
 ## Limitations
 
-- **The 10-run decision gap is a floor.** The fitted σ absorbs any real variation
+- **The 9-run decision gap is a floor.** The fitted σ absorbs any real variation
   in players' thresholds across counts and leverage, since varying thresholds look
   like noise to this estimator. That inflates the information gap and deflates the
   decision gap. Letting the cutoff vary by count would tighten both bounds.
 - **The ceiling is an assumption, not a measurement.** Hence the sensitivity curve.
 - **Listed vs. measured height.** 201 batters have a measured height backed out
   from ≥3 challenges; the rest fall back to listed height carrying ±0.5 in of
-  rounding uncertainty, which flips the in/out call on 2.0% of near-boundary
-  pitches and leaves 8.0% genuinely ambiguous (the flip/ambiguity rates are
-  from the pre-dedup-fix run and have not been independently recomputed).
+  rounding uncertainty, which flips the in/out call on 2.1% of near-boundary
+  pitches and leaves 7.8% genuinely ambiguous
+  (`scripts/measured_height_uncertainty.py`).
 - **Runs, not wins.** The model is indifferent to score, so it values a challenge
   in a blowout the same as one in a tie game.
 - **One partial season** (through 2026-09-03) of a brand-new system, so
@@ -263,16 +270,27 @@ Both are wrong, and both were measured rather than assumed.
   meaningfully higher, and clear of zero. Treat "runs left on the table" by
   team as a 2026 snapshot of who was on the roster, not a proven ranking of
   organizations.
-- **Perceptual σ is assumed location-independent within a role; it isn't.**
-  Splitting challenges into a 3×3 zone grid and testing whether the
+- **Perceptual σ is assumed location-independent within a role; it isn't —
+  but how much that costs the headline number isn't pinned down by one
+  season.** Splitting challenges into a 3×3 zone grid and testing whether the
   role gap in success rate varies by location: it does (likelihood-ratio
   test, p < 0.0001, a 38-point swing across well-populated regions), including
   a genuine reversal on pitches up over the heart of the plate, where batters
   out-read the battery. Refitting σ per zone region and re-running the full
-  decision model moves the headline decision gap by +0.74 runs/season (about
-  8% of it) — real, not negligible, though not large enough to change the
-  policy conclusion. See `scripts/zone_analysis.py` and
-  `scripts/zone_sigma_refit.py`.
+  decision model moves the headline decision gap by +0.74 runs/season on the
+  actual 2026 data — but each (role, region) cell is fit on as few as ~200
+  challenged pitches, and bootstrap-resampling just the challenged subset
+  within each cell (holding everything else fixed, 150 replicates,
+  `scripts/zone_sigma_bootstrap.py`) puts a 95% interval of **-1.6 to +3.1
+  runs/season** around that move — wide enough to cross zero and to contain
+  both this figure and an earlier, much smaller estimate from before a data
+  bug was fixed. The honest statement is that region-level σ variation is
+  real (the likelihood-ratio test doesn't depend on this resampling and isn't
+  in question) but this dataset cannot yet say whether accounting for it in
+  the decision model would move the headline gap by a little, a lot, or even
+  in the other direction. Treat +0.74 as one plausible point on a wide
+  distribution, not a correction to bank. See `scripts/zone_analysis.py`,
+  `scripts/zone_sigma_refit.py`, and `scripts/zone_sigma_bootstrap.py`.
 
 ## What I'd do with team-internal data
 
@@ -366,11 +384,28 @@ end to end on the corrected data (combined with a small amount of ordinary
 data revision between the original collection and this one): the decision
 gap (9.6 → 9.1 runs/season), the team-level split-half correlation
 (r = 0.24 → 0.22), the player-level split-half correlations (r = 0.28–0.37 →
-0.32–0.38), and — the largest single move — the zone-region sigma
-sensitivity check (+0.02 → +0.74 runs/season). Every other headline number
-in this README (both σ values, the 34.2%/66.9%/99.4% ball-radius figures,
-the r = 0.44 catcher-quality correlation, Cincinnati's 1.32× quality ratio)
-reproduced within rounding of what was already published.
+0.32–0.38), the cross-team spread significance test (p = 0.003 → 0.004), the
+measured-height robust set (203 → 201 batters, with the associated
+height-rounding-ambiguity figures moving from 2.04%/7.97% to 2.1%/7.8% now
+that they're computed by a script instead of quoted from an old run), the
+ball-radius classification check's borderline-band error rate (66.9% →
+67.3%, also now script-backed instead of quoted), and the zone-region sigma
+sensitivity check, whose point estimate moved from +0.02 to +0.74
+runs/season. That last one got a follow-up check this move itself prompted:
+a 1.8% change in the challenge count moving a sensitivity estimate 37x is
+the kind of thing that should be verified, not just re-quoted, so it was
+bootstrapped (see the Limitations section) — the honest finding is that this
+specific number was never well-estimated by one season of data in the first
+place, with or without the duplicate games. One figure moved by more than
+rounding for reasons that aren't fully pinned down: the ball-radius
+corrected model's match rate against the final call came back at 99.8%
+against a previously-quoted 99.4% — both the old height-uncertainty and
+ball-radius corrected-match figures had no reproducing script before this
+pass, and the new, regenerable numbers are the ones to trust. Every other
+headline number in this README (both σ values, the 34.2% ball-radius
+disagreement rate, the r = 0.44 catcher-quality correlation, Cincinnati's
+1.32× quality ratio) reproduced within rounding of what was already
+published.
 
 ## Running it
 

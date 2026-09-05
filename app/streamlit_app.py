@@ -71,6 +71,7 @@ catcher_summary = load("catcher_summary")
 zone_heatmap = load("zone_heatmap")
 zone_interaction = load("zone_interaction")
 zone_sigma_sensitivity = load("zone_sigma_sensitivity")
+zone_sigma_bootstrap = load("zone_sigma_sensitivity_bootstrap")
 option_values = load("option_values")
 re_2026 = load("re_2026")
 posterior_lookup = load("posterior_lookup")
@@ -369,10 +370,12 @@ try:
         move_season = (move.loc["optimal @ zone-region sigma (sensitivity)", "decision_gap_vs_observed_per_season"]
                        - move.loc["optimal @ player sigma (role-only, canonical)",
                                   "decision_gap_vs_observed_per_season"])
+        boot_lo = zone_sigma_bootstrap.move_runs_per_season.quantile(0.025)
+        boot_hi = zone_sigma_bootstrap.move_runs_per_season.quantile(0.975)
         st.markdown(
             f"**The model above assumes one σ per role, everywhere in the zone. "
-            f"That assumption is measurably wrong, and refitting it moves the "
-            f"headline number by a real, if modest, amount.** "
+            f"That assumption is measurably wrong — but how much it costs the "
+            f"headline number isn't pinned down by one season of data.** "
             f"Splitting the same challenges into a 3×3 grid (in/middle/away × low/middle/high, "
             f"relative to the batter) and testing whether the role gap in success rate "
             f"varies by location: it does, well past chance "
@@ -381,12 +384,18 @@ try:
             f"p {'< 0.0001' if p_val < 0.0001 else f'= {p_val:.4f}'}, essentially never; "
             f"swing of **{swing_pp:.0f} percentage points** across well-populated regions). "
             f"Refitting σ separately for each of the 9 regions and re-running the full "
-            f"decision model changes the headline decision gap by "
-            f"**{move_season:+.2f} runs per team-season** — about "
-            f"{move_season/decision_gap*100:.0f}% of the decision gap itself, real "
-            f"enough that neither number should be read as precise to the tenth "
-            f"of a run, but not large enough to change which policy is better or "
-            f"by roughly how much."
+            f"decision model moves the headline decision gap by "
+            f"**{move_season:+.2f} runs per team-season** on the actual 2026 data — but "
+            f"each region is fit on as few as ~200 challenged pitches, so we "
+            f"bootstrapped it (resampling just the challenged pitches within each "
+            f"region 150 times, refitting, and re-solving the model each time). "
+            f"The result: a 95% interval of **{boot_lo:+.1f} to {boot_hi:+.1f} runs "
+            f"per team-season** — wide enough to cross zero. The location effect "
+            f"itself is real (that likelihood-ratio test doesn't depend on this "
+            f"resampling), but this dataset can't yet say whether accounting for "
+            f"it in the decision model is worth a little, a lot, or possibly points "
+            f"the other way. Read {move_season:+.2f} as one plausible draw from a "
+            f"wide distribution, not a precise correction."
         )
 
         order_v = ["high", "middle", "low"]
@@ -896,7 +905,7 @@ try:
             st.markdown(
                 "Simulating 30 league-average teams at each team's real attempt "
                 "count, the *spread* in success rate we actually see is bigger than "
-                "chance alone produces (p = 0.003), and the same is true for runs "
+                "chance alone produces (p = 0.004), and the same is true for runs "
                 "gained (p < 0.0001). One team, Cincinnati, is 3.4 standard "
                 "deviations above the league rate — 3.4 times further from "
                 "average than the typical team-to-team wobble you'd expect "

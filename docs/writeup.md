@@ -104,7 +104,7 @@ answer the original question: solve for the optimal policy, using the same
 imperfect information a player actually has, and compare it to what teams
 are doing.
 
-![Bar chart comparing runs per team per game across observed 2026 behavior (0.226), the optimal policy given the same information (0.285), and a hypothetical perfect-information ceiling (0.622)](images/decomposition_bars.png)
+![Bar chart comparing runs per team per game across observed 2026 behavior (0.226), the optimal policy given the same information (0.282), and a hypothetical perfect-information ceiling (0.623)](images/decomposition_bars.png)
 
 Teams currently challenge about 2.1 times a game and win 53.7% of the time,
 netting an estimated 37 runs per team over a season. The optimal policy,
@@ -141,7 +141,7 @@ The gap isn't spread evenly across the league. Some teams are much closer to
 optimal than others, and the ones farthest away have the most to gain from
 changing nothing but which pitches they challenge.
 
-![Horizontal bar chart of the ten teams with the most runs left on the table in 2026, ranging from San Diego at about 17 runs down to Seattle at about 10](images/runs_left_teams.png)
+![Horizontal bar chart of the ten teams with the most runs left on the table in 2026, ranging from San Diego at about 20 runs down to Philadelphia at about 10](images/runs_left_teams.png)
 
 ## The counterintuitive one
 

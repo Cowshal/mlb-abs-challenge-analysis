@@ -75,6 +75,26 @@ Update this checklist as things land.
   34.1% / n=9,197 as the headline number; report the borderline-conditional
   66.9% when the audience needs "how bad is it exactly where it matters."
 
+  **CORRECTION (2026-09-05): this had no reproducing script, and n=9,197 was
+  the pre-dedup-fix challenge count.** Same problem as the 979/2.04%/7.97%
+  height-uncertainty figures below — hardcoded here with no way to
+  regenerate it, and it turned out to also predate the schedule-doubleheader
+  dedup fix (see the ABS challenge records section's correction). Wrote
+  `scripts/validate_ball_radius_classification.py` (reads
+  `data/abs_challenges.parquet` + `data/measured_heights.parquet`, fetches
+  listed height for the rest) to recompute all four numbers on the
+  corrected, deduped challenge table (n=9,071, the raw challenge count —
+  distinct from the 9,032 *opportunities* the decision model uses after
+  filtering). Result: naive disagreement 34.2% (matches within rounding),
+  borderline band n=4,599 / 67.3% naive disagreement (was 4,654 / 66.9%,
+  close), but the radius-corrected model's match rate came back at **99.77%
+  overall / 99.78% borderline** against the previously-quoted 99.41%/99.46%
+  — a real difference, not rounding noise, and not fully explained: neither
+  an all-listed-height nor the measured-height-blended version used here
+  reproduces the old figure exactly, and the original computation's exact
+  height-sourcing choice is lost with the script. Trust the new,
+  script-backed 99.8% going forward. `README.md` updated to match.
+
 **Statcast coordinate system:**
 - `y = 0` is the back point of home plate
 - `plate_x` / `plate_z` are reported at the FRONT of the plate (`y = 17/12 ft`)
@@ -275,6 +295,23 @@ observed success rate means players are under-challenging.
      shifted meaningfully, but treat them as unverified against the
      corrected data. `README.md`'s "203 batters" limitations bullet has
      been updated to 201.
+   - **CORRECTION (2026-09-05): the 979/2.04%/7.97% figures now have a
+     script.** They had none — hardcoded here with no way to regenerate
+     them, which is the same problem the writeup charts had before they were
+     generated from a script instead of screenshots. Wrote
+     `scripts/measured_height_uncertainty.py` (reads
+     `data/measured_heights.parquet` + `data/measured_heights_pitch_level.parquet`,
+     both from `scripts/verify_ball_radius.py`) to recompute both numbers
+     directly: for each vertical-bound challenged pitch belonging to a
+     robust-set batter, compare the deterministic in/out call under listed
+     vs. measured height (flip rate), and run `p_inside_zone(...,
+     height_uncertainty_ft=HEIGHT_ROUNDING_HALFWIDTH_FT)` to count how often
+     0.05<P<0.95 (ambiguous rate). On the post-dedup-fix data (201 robust
+     batters, not 203): **960** vertical-bound pitches (not 979), flip rate
+     **2.08%** (not 2.04%), ambiguous rate **7.81%** (not 7.97%) — all three
+     moved slightly from the 203-batter figures, as expected, and are now
+     independently reproducible rather than quoted. `README.md`'s bullet
+     updated to 2.1% / 7.8%.
 
 4. **Run expectancy** — `src/run_expectancy.py` builds RE(balls, strikes, outs,
    base state) from our own data into `data/run_expectancy.parquet` +
@@ -314,6 +351,27 @@ observed success rate means players are under-challenging.
    cells exceeding 0.02 runs are concentrated exactly in bases-loaded and
    deep-count states — i.e. the divergence is the base-out blindness above, not
    an off-by-one in our count transitions (an off-by-one would scatter).
+
+6. **A sensitivity check that swings 37x on a 1.8% data change is a sign to
+   bootstrap it, not to re-report it.** `scripts/zone_sigma_refit.py` fits
+   perceptual σ separately per (role, 3x3-zone-region) cell — 18 cells, some
+   on as few as ~200 challenged pitches — and re-solves the full DP. The
+   headline move went from +0.02 to +0.74 runs/season purely from the
+   game-dedup fix (a 1.8% row-count change). That ratio (37x move from a 2%
+   data change) was itself the tell that the estimate might be noise-dominated
+   rather than fixing to check it. Bootstrapped it (2026-09-05,
+   `scripts/zone_sigma_bootstrap.py`, 150 replicates, resampling only the
+   challenged-pitch subset within each cell with replacement, holding the
+   region's full opportunity population fixed as the geometric prior): 95%
+   interval **-1.6 to +3.1 runs/season** — crosses zero, and contains both
+   the pre-fix and post-fix point estimates. The location effect on
+   perceptual σ is still real (the likelihood-ratio test behind it, p<0.0001,
+   doesn't depend on this resampling), but the DOWNSTREAM DP re-solve is not
+   well-estimated by one season of challenge data at this level of
+   granularity. Lesson: when a derived sensitivity number is large relative
+   to its likely per-cell sample noise, bootstrap before publishing a point
+   estimate, even a "small and real" one — especially right after a data fix
+   changed that same number by an order of magnitude.
 
 ## Conventions
 

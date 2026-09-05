@@ -254,8 +254,8 @@ def main():
     for name in ("team_decomposition", "player_skill_test", "catcher_check",
                  "catcher_population", "catcher_summary",
                  "zone_heatmap", "zone_interaction", "zone_sigma",
-                 "zone_sigma_sensitivity", "option_values",
-                 "re_2026", "posterior_lookup",
+                 "zone_sigma_sensitivity", "zone_sigma_sensitivity_bootstrap",
+                 "option_values", "re_2026", "posterior_lookup",
                  "split_half", "team_significance", "team_sigma"):
         path = Path(f"data/{name}.parquet")
         if path.exists():

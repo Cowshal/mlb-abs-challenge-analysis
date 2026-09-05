@@ -1,0 +1,123 @@
+"""
+Reproduce the season-wide ball-radius classification-accuracy figures cited
+in CLAUDE.md and README.md (naive center-only classification disagrees with
+the final call on ~34% of all season challenges; ~67% within a
+one-ball-radius borderline band; the radius-corrected model matches the
+final call on ~99.4%). This existed previously only as a hardcoded finding
+in CLAUDE.md with no script behind it -- and it was computed on the
+season's challenge table BEFORE the schedule-doubleheader dedup fix
+(scripts/collect_abs_challenges.py), so it needs independent reproduction
+on the corrected data, not just a re-quote.
+
+plate_x/plate_z in data/abs_challenges.parquet are already the MIDPLATE
+location for 2026 data (confirmed in CLAUDE.md), so no trajectory re-solve
+is needed here. Batter height uses the measured value from
+scripts/verify_ball_radius.py where available (more accurate), falling
+back to listed height (fetched from statsapi) otherwise.
+
+Run: python scripts/validate_ball_radius_classification.py
+Reads: data/abs_challenges.parquet, data/measured_heights.parquet
+Output: prints the disagreement/accuracy report; writes
+        data/ball_radius_classification_check.parquet (one-row summary)
+"""
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from net import get_with_retries
+from geometry import center_distance_to_zone, ball_edge_distance, BALL_RADIUS_FT
+
+MODEL_VERSION = "ball_radius_classification_check_v1"
+
+
+def fetch_heights(batter_ids):
+    print(f"fetching listed heights for {len(batter_ids)} batters ...")
+    heights = {}
+    ids = list(batter_ids)
+    for i in range(0, len(ids), 50):
+        chunk = ids[i:i + 50]
+        r = get_with_retries(
+            "https://statsapi.mlb.com/api/v1/people",
+            params={"personIds": ",".join(str(b) for b in chunk)},
+        )
+        for person in r.json().get("people", []):
+            h = person.get("height", "")
+            if h:
+                feet, inches = h.replace('"', "").split("'")
+                heights[person["id"]] = int(feet) + int(inches.strip()) / 12.0
+    print(f"  got heights for {len(heights)}/{len(ids)} batters")
+    return heights
+
+
+def main():
+    df = pd.read_parquet("data/abs_challenges.parquet")
+    df = df.dropna(subset=["plate_x", "plate_z", "call_name"]).reset_index(drop=True)
+    df = df[df.call_name.isin(["Strike", "Ball"])].reset_index(drop=True)
+    print(f"season challenges with usable location + final call: {len(df)}")
+
+    measured = pd.read_parquet("data/measured_heights.parquet")
+    measured_map = dict(zip(measured.batter, measured.measured_height_ft))
+
+    need_listed = [b for b in df.batter.unique() if b not in measured_map]
+    listed_map = fetch_heights(need_listed)
+
+    height_ft = df.batter.map(measured_map)
+    height_source = np.where(df.batter.isin(measured_map), "measured", "listed")
+    fallback = df.batter.map(listed_map)
+    height_ft = height_ft.where(height_ft.notna(), fallback)
+    df["height_ft"] = height_ft
+    df["height_source"] = height_source
+    before = len(df)
+    df = df.dropna(subset=["height_ft"]).reset_index(drop=True)
+    print(f"dropped {before - len(df)} challenges with no height (measured or listed); "
+          f"{len(df)} remain ({(df.height_source == 'measured').sum()} measured, "
+          f"{(df.height_source == 'listed').sum()} listed)")
+
+    center = center_distance_to_zone(df.plate_x.values, df.plate_z.values, df.height_ft.values)
+    edge = ball_edge_distance(center)
+
+    naive_call = np.where(center > 0, "Strike", "Ball")
+    corrected_call = np.where(edge > 0, "Strike", "Ball")
+    truth = df.call_name.values
+
+    naive_disagree = naive_call != truth
+    corrected_match = corrected_call == truth
+    borderline = np.abs(center) < BALL_RADIUS_FT
+
+    n = len(df)
+    n_border = borderline.sum()
+    naive_rate = naive_disagree.mean()
+    naive_border_rate = naive_disagree[borderline].mean()
+    corrected_rate = corrected_match.mean()
+    corrected_border_rate = corrected_match[borderline].mean()
+
+    print(f"\n=== SEASON-WIDE BALL-RADIUS CLASSIFICATION CHECK (n={n}) ===")
+    print(f"naive (center-only) disagreement with final call: {naive_rate*100:.1f}% "
+          f"({naive_disagree.sum()} of {n})")
+    print(f"borderline band (|center| < 1 ball radius): n={n_border} "
+          f"({n_border/n*100:.1f}% of season)")
+    print(f"  naive disagreement within borderline band: {naive_border_rate*100:.1f}%")
+    print(f"radius-corrected model matches final call: {corrected_rate*100:.2f}% overall, "
+          f"{corrected_border_rate*100:.2f}% within borderline band")
+
+    out = pd.DataFrame([{
+        "n_challenges": n,
+        "naive_disagreement_rate": naive_rate,
+        "n_borderline": int(n_border),
+        "naive_disagreement_rate_borderline": naive_border_rate,
+        "corrected_match_rate": corrected_rate,
+        "corrected_match_rate_borderline": corrected_border_rate,
+        "model_version": MODEL_VERSION,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }])
+    Path("data").mkdir(exist_ok=True)
+    out.to_parquet("data/ball_radius_classification_check.parquet", index=False)
+    print("\nsaved data/ball_radius_classification_check.parquet")
+
+
+if __name__ == "__main__":
+    main()
