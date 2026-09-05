@@ -124,7 +124,7 @@ This falls directly out of the asymmetry in the rules. Because a correct
 challenge is free, the breakeven confidence for firing depends entirely on
 how much the call is worth.
 
-![Curve showing minimum confidence needed to challenge, falling from about 90% at low stakes to about 10% at high stakes, with two labeled points: a full-count call with runners on at 15%, and a 0-0 take with bases empty at 70%](images/threshold_curve.png)
+![Curve showing minimum confidence needed to challenge, falling from about 90% at low stakes to about 10% at high stakes, with two labeled points: a full-count call with runners on at 15%, and a 0-0 take with bases empty at 68%](images/threshold_curve.png)
 
 A full-count pitch with runners on base, where the call decides a walk versus
 a strikeout, is worth roughly 0.6 runs if you get it right — that's the
@@ -133,7 +133,7 @@ inning onward, which is what "worth" means throughout this analysis. It's
 valuable enough that you should challenge it at 15% confidence, with both
 challenges in hand. A first-pitch take with the bases empty is worth a few
 hundredths of a run — you shouldn't challenge that one unless you're almost
-certain, north of 70%. Those two numbers are more than four times apart. A
+certain, north of 68%. Those two numbers are more than four times apart. A
 player using one fixed gut-feel threshold across every situation is, by
 construction, wrong most of the time.
 
@@ -155,7 +155,7 @@ one. Catchers and pitchers see the pitch from directly behind the plate;
 batters see it from the side — arguably the worst seat in the house for
 judging a pitch's horizontal location.
 
-![Bar chart comparing perceptual read precision by role: batters at 2.74 inches of noise versus catchers and pitchers at 1.99 inches](images/sigma_by_role.png)
+![Bar chart comparing perceptual read precision by role: batters at 2.75 inches of noise versus catchers and pitchers at 1.99 inches](images/sigma_by_role.png)
 
 That gap in vantage point — a measured 28% difference in perceptual noise —
 is enough to explain most of the success-rate gap on its own.

@@ -95,6 +95,32 @@ Update this checklist as things land.
   height-sourcing choice is lost with the script. Trust the new,
   script-backed 99.8% going forward. `README.md` updated to match.
 
+  **FOLLOW-UP (2026-09-05): investigated the 99.77% vs. 99.41% gap directly,
+  found the git history (no prior script existed, confirmed via
+  `git log -p --all -- scripts/verify_ball_radius.py` and `git log --all -S`
+  pickaxe searches for "9,197"/"34.1"/"66.9" — the figures were introduced
+  as hardcoded README/CLAUDE.md prose in commit ac1cc18, computed ad hoc,
+  never committed as code), and tested two concrete hypotheses instead of
+  leaving the gap unexplained:
+  1. **Trajectory re-solve vs. `plate_x`/`plate_z`:** identical to 14 decimal
+     places on all 9,071 challenges. Not the cause.
+  2. **Circularity:** 1,198 of the 9,071 season challenges are the exact
+     top/bottom-bound pitches `scripts/verify_ball_radius.py` used to back
+     out that batter's measured height — classifying them with a height fit
+     that includes their own edge_distance partly tests the back-out
+     formula's ability to invert itself. Added a leave-one-out guard for
+     exactly those 1,198 pitches (median of the batter's OTHER vertical
+     pitches, or listed height if none remain). The number moved from
+     99.77% to **99.75%** — confirms the effect is real but two orders of
+     magnitude too small to explain a 0.34-point gap.
+  Conclusion: the ~0.3pp discrepancy against the old 99.41% is not accounted
+  for by either likely culprit, and the original one-off computation no
+  longer exists to compare against directly. Per this project's own
+  standard (a number that can't be regenerated doesn't belong), the new
+  circularity-guarded, script-backed 99.75%/99.78% is what `README.md`
+  reports, with the investigation summarized there rather than just the
+  new number.
+
 **Statcast coordinate system:**
 - `y = 0` is the back point of home plate
 - `plate_x` / `plate_z` are reported at the FRONT of the plate (`y = 17/12 ft`)

@@ -82,8 +82,9 @@ def fig2_threshold_curve():
 
     fig, ax = plt.subplots(figsize=(7.5, 4.2))
     ax.plot(dre_grid, p_star * 100, color=COLOR_OPTIMAL, linewidth=3)
-    for dre, note in ((0.62, "Full count,\nrunners on\n~15%"), (0.05, "0-0 take,\nbases empty\n~70%")):
+    for dre, label in ((0.62, "Full count,\nrunners on"), (0.05, "0-0 take,\nbases empty")):
         p = threshold(start.C_k0, dre) * 100
+        note = f"{label}\n~{p:.0f}%"
         ax.plot([dre], [p], "o", color=COLOR_OPTIMAL, markersize=8, zorder=5)
         ax.annotate(note, (dre, p), textcoords="offset points",
                     xytext=(12, 14) if dre > 0.3 else (12, 10),

@@ -194,20 +194,33 @@ you use. See `scripts/zone_analysis.py` and `scripts/zone_sigma_refit.py`.
 - **Zone geometry.** ABS applies the "any part of the ball over the zone" rule,
   so the boundary is the rectangle inflated by a ball radius, not the rectangle
   itself. Restricted to a rigorously defined borderline band (within one ball
-  radius of the centre-based boundary, n=4,599 — half of all 9,071 season
+  radius of the centre-based boundary, n=4,597 — half of all 9,071 season
   challenges — this is the raw challenge count, distinct from the 9,032
   *opportunities* the decision model uses after filtering), measuring from
   the ball's centre instead of its edge disagrees with MLB's actual ruling on
-  **67.3%** of them — worse than a coin flip. Across all 9,071 challenges
+  **67.2%** of them — worse than a coin flip. Across all 9,071 challenges
   unconditionally, the centre-only error rate is 34.2%. Validated against
   MLB's own `edge_distance` at R² = 1.0000 (slope 0.9999, intercept 0.1208 ft
-  — exactly one ball radius); the corrected model matches MLB's ruling 99.8%
-  of the time (`scripts/validate_ball_radius_classification.py` — written to
-  replace an earlier version of this figure that had no reproducing script;
-  the disagreement rates reproduced closely, 99.8% vs. a previously-quoted
-  99.4% did not, likely a difference in how batter height was sourced in the
-  original one-off computation — this script's number is the one to trust
-  going forward since it can be regenerated).
+  — exactly one ball radius); the corrected model matches MLB's ruling
+  **99.75%** of the time overall, 99.78% within the borderline band
+  (`scripts/validate_ball_radius_classification.py`). This replaces a figure
+  (34.1%/66.9%/99.41%/99.46%) that had no reproducing script and turned out
+  to predate the dedup fix. The disagreement rates above reproduce closely;
+  the corrected-model match rate did not (99.75% vs. a previously-quoted
+  99.41%), which is large enough to chase down rather than wave at rounding.
+  Two concrete explanations were tested and ruled out: (1) using the raw
+  trajectory re-solve instead of `plate_x`/`plate_z` — identical to 14
+  decimal places, not the cause; (2) circularity — 1,198 of these season
+  challenges are the exact pitches `scripts/verify_ball_radius.py` used to
+  back out that batter's own measured height, so testing on them with that
+  height is partly testing the back-out formula's ability to reproduce its
+  own input. Refit with leave-one-out height (excluding each pitch from its
+  own batter's height estimate) for those 1,198 pitches — the number moved
+  from 99.77% to 99.75%, confirming the effect exists but is too small to
+  explain the gap either. The remaining ~0.3pp difference is not accounted
+  for; the original one-off computation's exact method no longer exists to
+  compare against. This script's number is the one to trust going forward,
+  since it's the one that can be inspected and regenerated.
 - **Batter heights** backed out per batter by inverting the zone equation against
   real challenges. Listed heights turn out to be true heights rounded to the
   nearest inch (KS test against Uniform(±0.5 in): p = 0.49). Two independent
@@ -389,7 +402,7 @@ measured-height robust set (203 → 201 batters, with the associated
 height-rounding-ambiguity figures moving from 2.04%/7.97% to 2.1%/7.8% now
 that they're computed by a script instead of quoted from an old run), the
 ball-radius classification check's borderline-band error rate (66.9% →
-67.3%, also now script-backed instead of quoted), and the zone-region sigma
+67.2%, also now script-backed instead of quoted), and the zone-region sigma
 sensitivity check, whose point estimate moved from +0.02 to +0.74
 runs/season. That last one got a follow-up check this move itself prompted:
 a 1.8% change in the challenge count moving a sensitivity estimate 37x is
@@ -397,15 +410,19 @@ the kind of thing that should be verified, not just re-quoted, so it was
 bootstrapped (see the Limitations section) — the honest finding is that this
 specific number was never well-estimated by one season of data in the first
 place, with or without the duplicate games. One figure moved by more than
-rounding for reasons that aren't fully pinned down: the ball-radius
-corrected model's match rate against the final call came back at 99.8%
-against a previously-quoted 99.4% — both the old height-uncertainty and
-ball-radius corrected-match figures had no reproducing script before this
-pass, and the new, regenerable numbers are the ones to trust. Every other
-headline number in this README (both σ values, the 34.2% ball-radius
-disagreement rate, the r = 0.44 catcher-quality correlation, Cincinnati's
-1.32× quality ratio) reproduced within rounding of what was already
-published.
+rounding for reasons that were investigated but not fully pinned down: the
+ball-radius corrected model's match rate against the final call came back
+at 99.75% against a previously-quoted 99.41%. Both the old height-uncertainty
+and ball-radius corrected-match figures had no reproducing script before
+this pass; for the latter, two concrete explanations (a trajectory-solve vs.
+`plate_x`/`plate_z` discrepancy, and circularity between the classification
+check and the measured-height back-out it partly overlaps with) were tested
+and ruled out — see the Zone geometry limitations bullet for the full
+account. The new, regenerable numbers are the ones to trust in both cases.
+Every other headline number in this README (both σ values, the 34.2%
+ball-radius disagreement rate, the r = 0.44 catcher-quality correlation,
+Cincinnati's 1.32× quality ratio) reproduced within rounding of what was
+already published.
 
 ## Running it
 
