@@ -59,6 +59,8 @@ sigma = load("perception_sigma")
 split_half = load("split_half")
 team_sigma = load("team_sigma")
 team_sig_test = load("team_significance")
+player_skill_test = load("player_skill_test")
+catcher_check = load("catcher_check")
 sigma["Role"] = sigma.side.map(ROLE_LABELS)
 
 st.title("Who's leaving runs on the table?")
@@ -397,13 +399,16 @@ with tab3:
     st.subheader("Is this a repeatable team skill?")
     st.markdown(
         "##### In short\n"
-        "**We can't tell yet, and we're not going to guess.** Teams differ more "
-        "than pure chance alone would produce in a single season — but when we "
-        "split each team's season in half and checked whether teams that were "
-        "good in the first half were also good in the second half, the "
-        "relationship was too weak and too uncertain to call it a real, stable "
-        "skill. Read the team table above as a snapshot of 2026, not a "
-        "permanent ranking of who's good at this."
+        "**It's personnel, not a team skill.** Teams differ more than pure "
+        "chance alone would produce in a single season, but that spread fails "
+        "the standard test for a team trait: split each team's season in half, "
+        "and first-half success barely predicts second-half success. Splitting "
+        "*players* in half instead of teams tells a different story — the same "
+        "test reads meaningfully higher at the player level. Rosters turn over "
+        "mid-season, so a real trait belonging to specific players can still "
+        "look unstable at the team level. Read the team table above as a "
+        "snapshot of who was on the roster in 2026, not a permanent ranking of "
+        "front offices."
     )
 
     sh = split_half.merge(team_sig_test[["team", "z", "p_bonferroni"]], on="team")
@@ -445,6 +450,65 @@ with tab3:
             "that predicts next season, or a one-year cluster of borderline "
             "calls going one team's way, isn't answered by this season alone.*"
         )
+
+    st.markdown("**Does the same test read differently at the player level?**")
+    pst = player_skill_test.rename(columns={
+        "min_challenges_per_half": "Min. challenges / half", "n_players": "Players",
+        "r": "r", "p": "p", "ci_lo": "95% CI low", "ci_hi": "95% CI high"})
+    st.dataframe(
+        pst[["Min. challenges / half", "Players", "r", "p", "95% CI low", "95% CI high"]],
+        hide_index=True, width='stretch',
+        column_config={
+            "r": st.column_config.NumberColumn(format="%.3f"),
+            "p": st.column_config.NumberColumn(format="%.4f"),
+            "95% CI low": st.column_config.NumberColumn(format="%.3f"),
+            "95% CI high": st.column_config.NumberColumn(format="%.3f"),
+        },
+    )
+    st.markdown(
+        "Same split-half design, run on individual challengers instead of "
+        "teams, at a few different minimum-sample thresholds. At 8 or 10 "
+        "challenges per half, reliability (r ≈ 0.28–0.37) is clearly above the "
+        "team-level 0.24 and its 95% CI clears zero — unlike the team-level "
+        "test. The extremes are noisier (5: too lax a bar, mostly noise; 15: "
+        "only 51 players left, underpowered) rather than a genuine reversal. "
+        "*This doesn't prove an organizational skill — one season still can't "
+        "separate a genuinely better process from happening to roster the "
+        "right people — but it does explain why the team-level test came back "
+        "ambiguous despite the spread being real.*"
+    )
+
+    top_catchers = catcher_check[catcher_check.top_team][
+        ["team", "name", "n", "rate", "pct_rank", "quality_ratio"]
+    ].copy()
+    top_catchers["rate"] *= 100
+    top_catchers["pct_rank"] *= 100
+    top_catchers = top_catchers.rename(columns={
+        "team": "Team", "name": "Primary catcher", "n": "Challenges",
+        "rate": "Own success rate", "pct_rank": "League percentile (catchers)",
+        "quality_ratio": "Team quality ratio",
+    })
+    st.markdown("**Do the top teams' own catchers show up individually?**")
+    st.dataframe(
+        top_catchers, hide_index=True, width='stretch',
+        column_config={
+            "Own success rate": st.column_config.NumberColumn(format="%.1f%%"),
+            "League percentile (catchers)": st.column_config.NumberColumn(format="%.0f%%"),
+            "Team quality ratio": st.column_config.NumberColumn(format="%.2f"),
+        },
+    )
+    st.markdown(
+        "The top 5 teams by total runs gained, and the catcher who caught the "
+        "most innings for each. Cincinnati and Colorado — both quality-driven "
+        "leads (success rate above league average, not just more attempts) — "
+        "have primary catchers who individually rank in the 80th–85th "
+        "percentile of all catcher-challengers leaguewide. Minnesota and "
+        "Chicago's leads are volume-driven instead (more attempts at "
+        "average-or-below success), and their primary catchers grade out as "
+        "merely average or below. A team doesn't need an exceptional catcher "
+        "to lead the league on volume alone — and that's exactly the split "
+        "the data shows."
+    )
 
     st.markdown("**Perceptual precision, by team and role**")
     st.markdown(

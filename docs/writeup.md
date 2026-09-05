@@ -232,19 +232,40 @@ from one half of a season to the other.
 I also fit perceptual noise separately for every team, split by role, to
 see whether the catcher-vantage-point story from the section above shows up
 team by team. It mostly does — 28 of 30 teams read fielding challenges more
-precisely than batting challenges, matching the league pattern exactly — and
-teams with sharper fielding reads show a weak lean toward higher success
-(r = −0.35, p = 0.06), in the direction the vantage-point story would
-predict. But "weak lean, not quite significant" is exactly the kind of
-result that's easy to over-read once you already believe the story, so I'm
-reporting it and stopping there rather than calling it confirmation.
+precisely than batting challenges, matching the league pattern exactly.
 
-My actual conclusion: something real is happening across teams in 2026, and
-one season of data cannot tell us whether it's a stable organizational skill
-or a cluster of borderline calls that happened to break one team's way. The
-honest thing to publish is the team table labeled as a 2026 snapshot, plus
-the test that couldn't close the question — not a leaderboard with the
-uncertainty quietly dropped.
+The split-half test also has an answer at the wrong level. Rosters change
+mid-season — trades, call-ups, injuries — so a real, stable trait belonging
+to individual players can still fail a team-level reliability check if the
+players carrying it move around during the season. I re-ran the same
+split-half test on individual challengers instead of teams. At a minimum of
+8 challenges per half (108 players), the correlation is r = 0.28
+(p = 0.003, 95% CI 0.10–0.45); at a minimum of 10 (84 players), r = 0.37
+(p < 0.001, CI 0.17–0.54) — both clearly above the team-level 0.24 and,
+unlike it, comfortably clear of zero. Looser or stricter thresholds are
+noisier (5 challenges: r ≈ 0; 15 challenges: r = 0.25 but only 51 players
+left, p = 0.08), which is what small samples do rather than a real reversal.
+
+That points at personnel, not front offices — and it lines up with which
+teams' edges are quality-driven versus volume-driven. Cincinnati's lead is
+almost entirely quality, and its primary catcher, Tyler Stephenson,
+individually ranks in the 85th percentile of all catchers leaguewide on his
+own challenge success (69% on 123 attempts). Colorado, also quality-driven,
+has a similarly sharp catcher (80th percentile). Minnesota and Chicago's
+leads are volume stories instead — more attempts at average or
+below-average success rates — and their primary catchers grade out as
+merely average or below (60th and 13th percentile). A team doesn't need an
+exceptional catcher to lead the league if it's winning on attempt volume
+rather than hit rate, and that's the split the data actually shows.
+
+None of this proves an organizational skill — one season still can't
+distinguish "genuinely better process" from "happened to roster the right
+people this year" — but it does resolve the apparent contradiction: the
+spread across teams is real, it fails a team-level reliability check
+because it isn't a team-level trait, and it passes a player-level one
+because that's the level it actually lives at. Read the team table as a
+snapshot of who was on which roster in 2026, not as a ranking of front
+offices.
 
 ## What I'd want that I don't have
 

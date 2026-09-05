@@ -102,6 +102,16 @@ def main():
     for name in ("policy_decomposition", "ceiling_sensitivity", "leverage_comparison"):
         pd.read_parquet(f"data/{name}.parquet").to_parquet(OUT / f"{name}.parquet", index=False)
 
+    # ---- 1b. team-skill follow-ups: player-level split-half + catcher check ----
+    # (built by scripts/team_decomposition.py -> team_skill_test.py -> player_skill_test.py,
+    # run in that order since each reads the previous one's output)
+    for name in ("team_decomposition", "player_skill_test", "catcher_check"):
+        path = Path(f"data/{name}.parquet")
+        if path.exists():
+            pd.read_parquet(path).to_parquet(OUT / f"{name}.parquet", index=False)
+        else:
+            print(f"  WARNING: data/{name}.parquet missing -- run scripts/{name}.py")
+
     # ---- 2. optimal threshold surface: p* = C / (dre + C) ----
     ov = pd.read_parquet("data/option_values.parquet")
     ov = ov[ov.t <= 18]

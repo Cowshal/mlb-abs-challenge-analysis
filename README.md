@@ -114,12 +114,23 @@ their own volume would produce by pure chance (p = 0.003 and p < 0.0001,
 respectively), and Cincinnati's success rate sits 3.4 standard deviations
 above the league mean — a result that survives correcting for having checked
 all 30 teams (Bonferroni-adjusted p ≈ 0.02). Put plainly: there is more real
-variation here than luck alone explains, but one season can't tell us whether
-it's a stable skill or a cluster of borderline calls that happened to go one
-team's way. We tested this rather than assume it either direction, and the
-honest answer is "not yet resolved" — see `scripts/team_skill_test.py` and the
-"Is this a repeatable team skill?" section in the app's "Runs left on the
-table" tab, which walks through all four checks.
+variation here than luck alone explains, but the team-level split-half test
+can't confirm it's a stable team trait.
+
+**That's because it isn't a team-level trait — it's a personnel one.**
+Rosters change mid-season, so a real trait belonging to specific players can
+still fail a team-level reliability check if those players move around.
+Re-running split-half reliability on individual challengers instead of teams
+gives r = 0.28 (p = 0.003, n = 108 players with ≥8 challenges/half) to
+r = 0.37 (p < 0.001, n = 84 with ≥10/half) — both clearly above the
+team-level 0.24 and clear of zero, unlike it. It lines up with *why* teams
+lead: Cincinnati's quality-driven edge comes with a primary catcher (Tyler
+Stephenson) who individually ranks in the 85th percentile of all catchers
+leaguewide on his own challenge success; Minnesota's volume-driven edge comes
+with a merely average one. Read the team table as **who was on the roster in
+2026**, not as a proven front-office skill ranking — see
+`scripts/team_skill_test.py` and the "Is this a repeatable team skill?"
+section in the app's "Runs left on the table" tab for the full walkthrough.
 
 ## Catchers should challenge more than batters — not fewer
 
@@ -213,11 +224,13 @@ Both are wrong, and both were measured rather than assumed.
 - **One partial season** (through 2026-09-03) of a brand-new system, so
   first-year learning effects are unmodelled and the policy may be chasing a
   moving target.
-- **Team-level rankings are unconfirmed as a stable skill.** Split-half
-  reliability across the 30 teams is r = 0.24 (95% CI [-0.14, 0.55]) — too
-  weak to call challenge accuracy repeatable, even though the cross-team
-  spread itself is larger than binomial chance would produce. Treat
-  "runs left on the table" by team as a 2026 snapshot, not a proven ranking.
+- **Team-level rankings track rosters, not front offices.** Team-level
+  split-half reliability is r = 0.24 (95% CI [-0.14, 0.55]) — too weak to
+  call challenge accuracy a team trait — but player-level reliability
+  (r = 0.28–0.37 for players with enough volume in both halves) is
+  meaningfully higher, and clear of zero. Treat "runs left on the table" by
+  team as a 2026 snapshot of who was on the roster, not a proven ranking of
+  organizations.
 
 ## What I'd do with team-internal data
 
