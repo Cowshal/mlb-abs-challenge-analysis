@@ -2,7 +2,7 @@
 
 **Live app: [mlb-abs-challenge-analysis.streamlit.app](https://mlb-abs-challenge-analysis.streamlit.app)**
 
-**Optimal ABS challenge policy vs. observed behaviour — 2026 MLB season, 9,037 challenges across 2,136 games.**
+**Optimal ABS challenge policy vs. observed behaviour — 2026 MLB season, 9,032 challenges across 2,107 games.**
 
 2026 is the first season with the automated ball-strike challenge system. Each team
 gets two challenges, a **correct** challenge is retained, and rights are lost only
@@ -11,7 +11,7 @@ resource you spend *only when you're wrong*. That asymmetry puts the break-even
 confidence far below a coin flip, and league behaviour (2.1 challenges per
 team-game at a 54% success rate) does not look like it has been priced that way.
 Solving for the optimal policy — using the same imperfect information players
-actually have — says teams leave roughly **10 runs per team-season** on the table.
+actually have — says teams leave roughly **9 runs per team-season** on the table.
 The mechanism is not volume. **The optimal policy wins a *smaller* share of its
 challenges than teams currently do (43% vs 54%) and still nets more runs, because
 the calls it picks are worth more.** Challenge different, not challenge more.
@@ -34,11 +34,11 @@ lose more often than win.
 
 | | challenges / team-game | success rate | runs / team-game |
 |---|---|---|---|
-| **Observed 2026** | 2.15 | 53.7% | 0.226 |
-| **Optimal, same information** | 2.91 | 43.3% | 0.285 |
-| Ceiling (perfect information) | 4.76 | 80.2% | 0.622 |
+| **Observed 2026** | 2.14 | 53.7% | 0.226 |
+| **Optimal, same information** | 2.90 | 43.0% | 0.282 |
+| Ceiling (perfect information) | 4.76 | 79.9% | 0.623 |
 
-**Decision gap: ~10 runs per team-season.** This is the actionable number. It
+**Decision gap: ~9 runs per team-season.** This is the actionable number. It
 depends only on players' measured perceptual noise, not on any assumption about
 tracking technology.
 
@@ -60,7 +60,7 @@ truth. So it is reported as a curve, not a number:
 | policy | mean stake (runs) | median stake | runs per overturn | success |
 |---|---|---|---|---|
 | observed | 0.216 | 0.146 | 0.196 | 53.7% |
-| optimal | 0.259 | 0.201 | 0.227 | 43.3% |
+| optimal | 0.259 | 0.201 | 0.226 | 43.0% |
 
 Teams are challenging calls that are *easy to win* rather than calls that are
 *worth winning*. A borderline strike three with the bases loaded is worth several
@@ -75,25 +75,25 @@ range.
 
 | team | actual rate | actual success | optimal rate | optimal success | runs left / season |
 |---|---|---|---|---|---|
-| SD | 2.01/g | 51.2% | 2.89/g | 47.9% | 16.9 |
-| TB | 2.05/g | 53.0% | 2.81/g | 46.1% | 16.1 |
-| WSH | 2.04/g | 48.8% | 2.93/g | 40.1% | 14.6 |
-| STL | 1.69/g | 50.4% | 2.85/g | 39.6% | 13.2 |
-| HOU | 2.37/g | 53.6% | 2.96/g | 45.7% | 12.6 |
+| SD | 2.01/g | 51.2% | 2.94/g | 48.1% | 19.9 |
+| WSH | 2.04/g | 48.8% | 2.99/g | 42.5% | 18.5 |
+| TB | 2.05/g | 53.0% | 2.98/g | 47.0% | 18.4 |
+| STL | 1.69/g | 50.4% | 2.89/g | 39.6% | 13.4 |
+| SEA | 2.02/g | 50.2% | 2.97/g | 45.8% | 13.3 |
 
-**Players** — restricted to `optimal_challenges ≥ 20` (72 of 392 batters clear this
+**Players** — restricted to `optimal_challenges ≥ 20` (71 of 398 batters clear this
 bar) so the list isn't small-sample noise; below it, one lucky or unlucky swing
 of the season shuffles the ranking:
 
 | player | actual challenges | actual success | optimal challenges | optimal success | runs left |
 |---|---|---|---|---|---|
-| Ben Williamson | 5 | 60.0% | 22 | 54.5% | 3.33 |
-| Yandy Díaz | 0 | — | 26 | 57.7% | 3.28 |
-| Garrett Mitchell | 8 | 25.0% | 20 | 65.0% | 2.41 |
-| Mike Trout | 11 | 63.6% | 30 | 56.7% | 2.31 |
-| Matt Chapman | 12 | 33.3% | 21 | 52.4% | 2.20 |
+| Curtis Mead | 10 | 30.0% | 22 | 54.5% | 3.57 |
+| Yandy Díaz | 0 | — | 29 | 51.7% | 3.09 |
+| Mike Trout | 11 | 63.6% | 33 | 54.5% | 3.02 |
+| Steven Kwan | 14 | 50.0% | 34 | 50.0% | 2.51 |
+| Francisco Lindor | 1 | 0.0% | 21 | 47.6% | 2.45 |
 
-Two of these (Díaz, and to a lesser extent Williamson) barely challenge at all
+Two of these (Díaz, and to a lesser extent Lindor) barely challenge at all
 in reality — the model isn't saying they challenge badly, it's saying they're
 sitting on a right they almost never use. Full tables (`app/data/per_team.parquet`,
 `app/data/per_batter.parquet`) are in the app's "Runs left on the table" tab,
@@ -101,7 +101,7 @@ where the minimum-sample threshold is adjustable.
 
 Runs gained factors exactly as attempts × success rate × mean stake per
 overturn, and teams lead the table for different reasons. Cincinnati's edge is
-almost entirely *quality*: attempts are close to league average (+8%), but
+almost entirely *quality*: attempts are close to league average (+7%), but
 success rate is 17% above league and average stake per overturn is 13% above —
 together worth about **1.32×** a league-average team's output at Cincinnati's
 own volume. Minnesota's edge, by contrast, is almost entirely *volume*: 27%
@@ -113,11 +113,11 @@ per-team ratios (attempts/success/leverage, against league baseline) are in
 
 **Read the team table as a 2026 snapshot, not a proven skill ranking.**
 Splitting each team's season in half and correlating first-half success rate
-against second-half gives r = 0.24 across all 30 teams, 95% CI [-0.14, 0.55]
+against second-half gives r = 0.22 across all 30 teams, 95% CI [-0.16, 0.54]
 — too weak and too uncertain to call challenge accuracy a stable, predictable
 team trait. At the same time, the actual spread in success rate and runs
 gained across teams is bigger than 30 teams drawing from the league rate at
-their own volume would produce by pure chance (p = 0.003 and p < 0.0001,
+their own volume would produce by pure chance (p = 0.004 and p < 0.0001,
 respectively), and Cincinnati's success rate sits 3.4 standard deviations
 above the league mean — a result that survives correcting for having checked
 all 30 teams (Bonferroni-adjusted p ≈ 0.02). Put plainly: there is more real
@@ -128,9 +128,9 @@ can't confirm it's a stable team trait.
 Rosters change mid-season, so a real trait belonging to specific players can
 still fail a team-level reliability check if those players move around.
 Re-running split-half reliability on individual challengers instead of teams
-gives r = 0.28 (p = 0.003, n = 108 players with ≥8 challenges/half) to
-r = 0.37 (p < 0.001, n = 84 with ≥10/half) — both clearly above the
-team-level 0.24 and clear of zero, unlike it. It lines up with *why* teams
+gives r = 0.32 (p < 0.001, n = 104 players with ≥8 challenges/half) to
+r = 0.38 (p < 0.001, n = 82 with ≥10/half) — both clearly above the
+team-level 0.22 and clear of zero, unlike it. It lines up with *why* teams
 lead: Cincinnati's quality-driven edge comes with a primary catcher (Tyler
 Stephenson) who individually ranks in the 85th percentile of all catchers
 leaguewide on his own challenge success; Minnesota's volume-driven edge comes
@@ -170,7 +170,7 @@ The σ estimates come from *where* players chose to challenge — never from how
 often they challenged or how often they were right. That matters: fitting σ to
 volume and success rate would be circular, forcing the measured gap to zero by
 construction. As an out-of-fit check, the model reproduces the known 45%/59% split
-(48.9% / 57.9%) without ever seeing it.
+(48.8% / 57.9%) without ever seeing it.
 
 **One σ per role assumes accuracy is location-independent — it isn't, but the
 headline number doesn't care.** Splitting the zone into a 3×3 grid (in/middle/away
@@ -180,21 +180,25 @@ swing across well-populated regions), including a real reversal on pitches up
 over the heart of the plate — batters succeed 69% of the time there against 49%
 for the battery, the opposite of the pattern everywhere else (n=252 and 367,
 not noise). Refitting σ separately per zone region and re-running the whole
-decision model end to end moves the headline decision gap by **+0.02
-runs/team-season** — negligible. Read that as: don't trust the pooled model for
-any single high-middle call, but do trust it in aggregate. See
-`scripts/zone_analysis.py` and `scripts/zone_sigma_refit.py`.
+decision model end to end moves the headline decision gap by **+0.74
+runs/team-season** (from 9.1 to 9.8) — real, about 8% of the headline number,
+but not enough to change which policy is better or by roughly how much. Read
+that as: don't trust the pooled model for any single high-middle call, and
+don't treat the headline decision gap as precise to the tenth of a run either
+— but the qualitative story (teams are leaving real runs on the table by
+challenging the wrong pitches) doesn't depend on which of these two numbers
+you use. See `scripts/zone_analysis.py` and `scripts/zone_sigma_refit.py`.
 
 ## Method
 
 - **Zone geometry.** ABS applies the "any part of the ball over the zone" rule,
   so the boundary is the rectangle inflated by a ball radius, not the rectangle
   itself. Restricted to a rigorously defined borderline band (within one ball
-  radius of the centre-based boundary, n=4,654 — half of all 9,197 season
+  radius of the centre-based boundary, n=4,569 — half of all 9,032 season
   challenges), measuring from the ball's centre instead of its edge disagrees
   with MLB's actual ruling on **66.9%** of them — worse than a coin flip.
-  Across all 9,197 challenges unconditionally, the centre-only error rate is
-  34.1%. Validated against MLB's own `edge_distance` at R² = 1.0000 (slope
+  Across all 9,032 challenges unconditionally, the centre-only error rate is
+  34.2%. Validated against MLB's own `edge_distance` at R² = 1.0000 (slope
   0.9999, intercept 0.1208 ft — exactly one ball radius); the corrected model
   matches MLB's ruling 99.4% of the time.
 - **Batter heights** backed out per batter by inverting the zone equation against
@@ -242,19 +246,20 @@ Both are wrong, and both were measured rather than assumed.
   like noise to this estimator. That inflates the information gap and deflates the
   decision gap. Letting the cutoff vary by count would tighten both bounds.
 - **The ceiling is an assumption, not a measurement.** Hence the sensitivity curve.
-- **Listed vs. measured height.** 203 batters have a measured height backed out
+- **Listed vs. measured height.** 201 batters have a measured height backed out
   from ≥3 challenges; the rest fall back to listed height carrying ±0.5 in of
   rounding uncertainty, which flips the in/out call on 2.0% of near-boundary
-  pitches and leaves 8.0% genuinely ambiguous.
+  pitches and leaves 8.0% genuinely ambiguous (the flip/ambiguity rates are
+  from the pre-dedup-fix run and have not been independently recomputed).
 - **Runs, not wins.** The model is indifferent to score, so it values a challenge
   in a blowout the same as one in a tie game.
 - **One partial season** (through 2026-09-03) of a brand-new system, so
   first-year learning effects are unmodelled and the policy may be chasing a
   moving target.
 - **Team-level rankings track rosters, not front offices.** Team-level
-  split-half reliability is r = 0.24 (95% CI [-0.14, 0.55]) — too weak to
+  split-half reliability is r = 0.22 (95% CI [-0.16, 0.54]) — too weak to
   call challenge accuracy a team trait — but player-level reliability
-  (r = 0.28–0.37 for players with enough volume in both halves) is
+  (r = 0.32–0.38 for players with enough volume in both halves) is
   meaningfully higher, and clear of zero. Treat "runs left on the table" by
   team as a 2026 snapshot of who was on the roster, not a proven ranking of
   organizations.
@@ -264,9 +269,10 @@ Both are wrong, and both were measured rather than assumed.
   test, p < 0.0001, a 38-point swing across well-populated regions), including
   a genuine reversal on pitches up over the heart of the plate, where batters
   out-read the battery. Refitting σ per zone region and re-running the full
-  decision model moves the headline decision gap by only +0.02 runs/season —
-  the assumption is wrong locally but the aggregate number is robust to it.
-  See `scripts/zone_analysis.py` and `scripts/zone_sigma_refit.py`.
+  decision model moves the headline decision gap by +0.74 runs/season (about
+  8% of it) — real, not negligible, though not large enough to change the
+  policy conclusion. See `scripts/zone_analysis.py` and
+  `scripts/zone_sigma_refit.py`.
 
 ## What I'd do with team-internal data
 
@@ -326,6 +332,45 @@ excludes duckdb (the app must never touch it), so the live site crashed with
 the one function that actually needs it; verified in a from-scratch venv
 built from `requirements.txt` alone that the app's imports now succeed
 without duckdb installed at all.
+
+**A third instance of the same pattern, found in a correctness audit:**
+`data/abs_challenges.parquet` had 121 duplicate rows across 26 games. Root
+cause: the MLB schedule API lists a game_pk once per date it appears under,
+and 26 games (almost certainly doubleheader/makeup-game listings) appeared
+under two dates each in the collection window — `collect_abs_challenges.py`
+fetched and saved each of those games twice. Three scripts had grown a
+defensive `.drop_duplicates()` to cope with this downstream; the actual fix
+is at the source (`final_game_pks()` now deduplicates, and `main()` refuses
+to save a file with any duplicate rows), so those three defensive dedups were
+removed rather than kept as redundant insurance. Re-ran the full pipeline on
+the corrected data — see "What changed when this was fixed" below.
+
+**A structural guard against all three.** The `.gitignore` match, the
+`duckdb` import, and this duplicate-rows bug are the same failure shape: a
+convention that holds almost everywhere, with nothing checking "everywhere."
+`scripts/build_app_data.py` now runs three checks before writing anything —
+`data/abs_challenges.parquet` has no duplicate rows, every module the app
+imports at load time resolves under `requirements.txt` alone (a static,
+transitive check of the app's own import graph, not a guess), and every file
+it writes to `app/data/` carries a `model_version`/`generated_at` stamp — and
+raises loudly, refusing to write, if any of the three fail. All three were
+verified to actually fire (each was deliberately triggered once, on a copy of
+the data, and reverted) rather than assumed to work from reading the code.
+
+**What changed when this was fixed.** The 26 affected games' individual
+challenge counts roughly halved (e.g. Tyler Stephenson's own challenges,
+123 → 119; Hunter Goodman's, 97 → 95) — but since exact duplication doesn't
+change a ratio, no previously-published *rate* moved because of the
+duplicates themselves. What *did* move, from re-running the full pipeline
+end to end on the corrected data (combined with a small amount of ordinary
+data revision between the original collection and this one): the decision
+gap (9.6 → 9.1 runs/season), the team-level split-half correlation
+(r = 0.24 → 0.22), the player-level split-half correlations (r = 0.28–0.37 →
+0.32–0.38), and — the largest single move — the zone-region sigma
+sensitivity check (+0.02 → +0.74 runs/season). Every other headline number
+in this README (both σ values, the 34.2%/66.9%/99.4% ball-radius figures,
+the r = 0.44 catcher-quality correlation, Cincinnati's 1.32× quality ratio)
+reproduced within rounding of what was already published.
 
 ## Running it
 

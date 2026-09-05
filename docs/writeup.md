@@ -10,7 +10,7 @@ and the one I want you to sit with before reading anything else: **a correct
 challenge is given back.** Only a wrong one costs you. A team that keeps
 winning its challenges never runs out.
 
-Given that, look at how players are actually behaving. Across 9,037
+Given that, look at how players are actually behaving. Across 9,032
 challenges in the 2026 season, the league-wide success rate is 53.7%. Just
 above a coin flip.
 
@@ -91,7 +91,7 @@ what success rate it implies.
 The result: batters read a pitch's location with about 2.75 inches of noise;
 catchers and pitchers, about 2.0 inches. Here's the check that convinced me
 this wasn't a coincidence. Without ever showing the model the league's actual
-success rate by role, it reproduced it almost exactly — predicting 48.9% for
+success rate by role, it reproduced it almost exactly — predicting 48.8% for
 batters and 57.9% for catchers and pitchers, against the real 45% and 59%. A
 model told nothing about outcomes landed within a few points of both,
 approaching from opposite directions, using only where people chose to
@@ -109,8 +109,8 @@ are doing.
 Teams currently challenge about 2.1 times a game and win 53.7% of the time,
 netting an estimated 37 runs per team over a season. The optimal policy,
 given identical information, challenges more — about 2.9 times a game — and
-wins a *smaller* share: 43.3%. It still comes out ahead, at roughly 46 runs
-per team-season, a gap of about 10 runs.
+wins a *smaller* share: 43.0%. It still comes out ahead, at roughly 46 runs
+per team-season, a gap of about 9 runs.
 
 That's the headline, but the mechanism is the interesting part, and it isn't
 what you'd guess. The optimal policy isn't winning by challenging more often
@@ -184,7 +184,7 @@ first-half success rate
 against second-half. If challenge accuracy is a real, stable team skill,
 teams that are good in April through June should still be good in July
 through September. Across all 30 teams, the correlation came back at
-r = 0.24, 95% confidence interval −0.14 to 0.55. That interval contains
+r = 0.22, 95% confidence interval −0.16 to 0.54. That interval contains
 zero. I can't call this a repeatable skill from that number alone, and I'm
 not going to round it up to one because a leaderboard is more satisfying
 than an unresolved question.
@@ -192,7 +192,7 @@ than an unresolved question.
 It isn't simple noise either. Simulating 30 league-average teams at each
 team's real attempt count, the spread you'd expect from binomial chance
 alone is smaller than the spread MLB teams actually showed in 2026 — for
-both success rate (p = 0.003) and runs gained (p < 0.0001). One team,
+both success rate (p = 0.004) and runs gained (p < 0.0001). One team,
 Cincinnati, sits 3.4 standard deviations above the league rate, a gap that
 survives a Bonferroni correction for having checked all 30 teams
 (p ≈ 0.02). There is more real variation across teams than chance alone
@@ -204,22 +204,22 @@ mid-season — trades, call-ups, injuries — so a real, stable trait belonging
 to individual players can still fail a team-level reliability check if the
 players carrying it move around during the season. I re-ran the same
 split-half test on individual challengers instead of teams. At a minimum of
-8 challenges per half (108 players), the correlation is r = 0.28
-(p = 0.003, 95% CI 0.10–0.45); at a minimum of 10 (84 players), r = 0.37
-(p < 0.001, CI 0.17–0.54) — both clearly above the team-level 0.24 and,
+8 challenges per half (104 players), the correlation is r = 0.32
+(p < 0.001, 95% CI 0.14–0.49); at a minimum of 10 (82 players), r = 0.38
+(p < 0.001, CI 0.18–0.55) — both clearly above the team-level 0.22 and,
 unlike it, comfortably clear of zero. Looser or stricter thresholds are
-noisier (5 challenges: r ≈ 0; 15 challenges: r = 0.25 but only 51 players
-left, p = 0.08), which is what small samples do rather than a real reversal.
+noisier (5 challenges: r ≈ 0; 15 challenges: r ≈ 0.22 but only 51 players
+left, p = 0.12), which is what small samples do rather than a real reversal.
 
 That points at personnel, not front offices — and it lines up with which
 teams' edges are quality-driven versus volume-driven. Cincinnati's lead is
 almost entirely quality, and its primary catcher, Tyler Stephenson,
 individually ranks in the 85th percentile of all catchers leaguewide on his
-own challenge success (69% on 123 attempts). Colorado, also quality-driven,
+own challenge success (69% on 119 attempts). Colorado, also quality-driven,
 has a similarly sharp catcher (80th percentile). Minnesota and Chicago's
 leads are volume stories instead — more attempts at average or
 below-average success rates — and their primary catchers grade out as
-merely average or below (60th and 13th percentile). A team doesn't need an
+merely average or below (58th and 13th percentile). A team doesn't need an
 exceptional catcher to lead the league if it's winning on attempt volume
 rather than hit rate, and that's the split the data actually shows.
 
@@ -255,7 +255,7 @@ The perceptual-noise estimate is fit with a single confidence threshold per
 role. Real players almost certainly vary their threshold by count and game
 situation, and that variation looks exactly like noise to an estimator that
 isn't told about it — which means my noise estimate is inflated, and the
-coachable gap I'm reporting (10 runs) is a floor, not a point estimate.
+coachable gap I'm reporting (9 runs) is a floor, not a point estimate.
 Letting the threshold vary by count would tighten it, probably upward.
 
 Second, this model is built entirely on data MLB's own tracking system
