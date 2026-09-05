@@ -97,6 +97,7 @@ def main():
     per_team["runs_left_on_table"] = per_team.optimal_runs - per_team.actual_runs
     per_team["runs_left_per_game"] = per_team.runs_left_on_table / per_team.games
     per_team["actual_success"] = per_team.actual_correct / per_team.actual_challenges
+    per_team["optimal_success"] = per_team.optimal_correct / per_team.optimal_challenges
     per_team["full_season_pace"] = per_team.runs_left_per_game * 162
     per_team = per_team.sort_values("runs_left_on_table", ascending=False)
     per_team.to_parquet(OUT / "per_team.parquet", index=False)
@@ -111,6 +112,7 @@ def main():
         include_groups=False).reset_index()
     ob = fir_b.groupby("batter").apply(
         lambda g: pd.Series({"optimal_challenges": len(g),
+                             "optimal_correct": int(g.won.sum()),
                              "optimal_runs": g.dre[g.won].sum()}),
         include_groups=False).reset_index()
     per_batter = ab.merge(ob, on="batter", how="outer").fillna(0)
@@ -121,6 +123,7 @@ def main():
     per_batter["actual_success"] = np.where(
         per_batter.actual_challenges > 0,
         per_batter.actual_correct / per_batter.actual_challenges.replace(0, np.nan), np.nan)
+    per_batter["optimal_success"] = per_batter.optimal_correct / per_batter.optimal_challenges
     per_batter = per_batter.sort_values("runs_left_on_table", ascending=False)
     per_batter.to_parquet(OUT / "per_batter.parquet", index=False)
 

@@ -54,11 +54,36 @@ decimals), so there is no rounding to hide behind, and the bulk CSV export
 pitches (mean and max difference both 0.000000 in over 342 pitches). CSV
 `at_bat_number` matches gf `ab_number` with no offset.
 
-## Not an ABS-era change
+## Correction: this WAS an ABS-era change — the historical record was backfilled
 
-The same test on a 2024 game (746865, 262 pitches, pre-ABS) gives the same
-answer: 0.0000 in at y = 8.5/12, 0.3475 in / 0.9225 in at the front. This is a
-long-standing convention, not something introduced for the challenge system.
+An earlier version of this note ran the same test on a 2024 game (746865, 262
+pitches, pre-ABS) and got the same answer: 0.0000 in at y = 8.5/12. It concluded
+this was "a long-standing convention, not something introduced for the challenge
+system." **That conclusion was wrong**, and it was wrong for an interesting
+reason worth documenting rather than quietly fixing.
+
+Savant's own CSV documentation (`baseballsavant.mlb.com/csv-docs`, fetched and
+verified against the raw HTML, not just an AI summary of it) says, verbatim, for
+both fields:
+
+> "Through 2025, this was front-of-plate. From 2026 on, this is middle-of-plate
+> to align with the ABS system."
+
+So the definition **did** change for ABS in 2026, exactly as the walkthrough's
+broader framing would suggest. The reason the 2024 game still measured as
+midplate is that Statcast revises data retroactively (already a known behavior —
+see `CLAUDE.md`'s ingest notes), and evidently that revision extended to
+recomputing `plate_x`/`plate_z` for historical seasons under the new definition.
+Querying game 746865 *today* returns midplate values for a game played in 2024;
+querying it in 2024, per Savant's own account, would not have.
+
+The measurement in this document is still correct as a statement about the data
+as it exists now — which is what any analysis run today, on this data, actually
+uses — but "not an ABS-era change" overclaimed a historical stability that
+Savant's own documentation directly contradicts. Always check the source's own
+field docs before asserting an empirical pattern is a long-standing convention;
+an empirical match across seasons can be a signature of retroactive backfill
+rather than of the convention having always held.
 
 ## Why it still mattered to build the re-solve
 

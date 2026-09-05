@@ -1,5 +1,7 @@
 # Who's Leaving Runs on the Table?
 
+**Live app: [mlb-abs-challenge-analysis.streamlit.app](https://mlb-abs-challenge-analysis.streamlit.app)**
+
 **Optimal ABS challenge policy vs. observed behaviour — 2026 MLB season, 9,037 challenges across 2,136 games.**
 
 2026 is the first season with the automated ball-strike challenge system. Each team
@@ -53,6 +55,36 @@ accordingly — from roughly 73% on a low-stake call down to 15% on a full-count
 flip with two challenges in hand. A single fixed habit cannot be right across that
 range.
 
+## Who, specifically
+
+**Teams** — all 30 have ~140 games of sample, so no filtering needed:
+
+| team | actual rate | actual success | optimal rate | optimal success | runs left / season |
+|---|---|---|---|---|---|
+| SD | 2.01/g | 51.2% | 2.89/g | 47.9% | 16.9 |
+| TB | 2.05/g | 53.0% | 2.81/g | 46.1% | 16.1 |
+| WSH | 2.04/g | 48.8% | 2.93/g | 40.1% | 14.6 |
+| STL | 1.69/g | 50.4% | 2.85/g | 39.6% | 13.2 |
+| HOU | 2.37/g | 53.6% | 2.96/g | 45.7% | 12.6 |
+
+**Players** — restricted to `optimal_challenges ≥ 20` (72 of 392 batters clear this
+bar) so the list isn't small-sample noise; below it, one lucky or unlucky swing
+of the season shuffles the ranking:
+
+| player | actual challenges | actual success | optimal challenges | optimal success | runs left |
+|---|---|---|---|---|---|
+| Ben Williamson | 5 | 60.0% | 22 | 54.5% | 3.33 |
+| Yandy Díaz | 0 | — | 26 | 57.7% | 3.28 |
+| Garrett Mitchell | 8 | 25.0% | 20 | 65.0% | 2.41 |
+| Mike Trout | 11 | 63.6% | 30 | 56.7% | 2.31 |
+| Matt Chapman | 12 | 33.3% | 21 | 52.4% | 2.20 |
+
+Two of these (Díaz, and to a lesser extent Williamson) barely challenge at all
+in reality — the model isn't saying they challenge badly, it's saying they're
+sitting on a right they almost never use. Full tables (`app/data/per_team.parquet`,
+`app/data/per_batter.parquet`) are in the app's "Runs left on the table" tab,
+where the minimum-sample threshold is adjustable.
+
 ## Catchers should challenge more than batters — not fewer
 
 Fitting each role's perceptual noise separately:
@@ -84,8 +116,12 @@ construction. As an out-of-fit check, the model reproduces the known 45%/59% spl
 - **Zone geometry** validated against MLB's own `edge_distance` at R² = 1.0000
   (slope 0.9999, intercept 0.1208 ft — exactly one ball radius). ABS applies the
   "any part of the ball over the zone" rule, so the boundary is the rectangle
-  inflated by a ball radius; measuring from the ball's centre instead
-  misclassifies about 27% of borderline calls.
+  inflated by a ball radius. Measuring from the ball's centre instead disagrees
+  with MLB's actual ruling on **34.1%** of all 9,197 challenges in the 2026
+  season; restricted to a defined borderline band (within one ball radius of the
+  centre-based boundary, n=4,654 — half the season), that rises to **66.9%**,
+  worse than a coin flip. The corrected model matches MLB's ruling 99.4% of the
+  time.
 - **Batter heights** backed out per batter by inverting the zone equation against
   real challenges. Listed heights turn out to be true heights rounded to the
   nearest inch (KS test against Uniform(±0.5 in): p = 0.49). Two independent
@@ -99,21 +135,29 @@ construction. As an out-of-fit check, the model reproduces the known 45%/59% spl
 
 ### Two premises worth correcting
 
-Both are standard advice for this kind of project. Both are wrong, and both were
-measured rather than assumed.
+Both are commonly assumed, and both are stated explicitly in the project brief
+this repo was built from
+([`docs/baseball-projects-walkthrough.md`](docs/baseball-projects-walkthrough.md)).
+Both are wrong, and both were measured rather than assumed.
 
 1. **[`delta_run_exp` is count-based, not base-out aware](docs/delta_run_exp_is_not_base_out_aware.md)** —
-   commonly recommended as the shortcut for the run value of flipping a call. It
-   prices a bases-loaded strike three almost identically to a bases-empty one:
-   implied run expectancy is ~0.24 for all eight 2-out base states, where true
-   values run from 0.099 to 0.755. Disqualifying here, because the entire decision
-   turns on situational leverage.
+   the brief proposes it as the shortcut for the run value of flipping a call:
+   "`delta_run_exp` already gives you the run value of each pitch outcome."
+   That's the wrong tool here: it prices a bases-loaded strike three almost
+   identically to a bases-empty one — implied run expectancy is ~0.24 for all
+   eight 2-out base states, where true values run from 0.099 to 0.755 —
+   disqualifying for a decision that turns entirely on situational leverage.
 
 2. **[`plate_x` / `plate_z` are already at the middle of the plate](docs/plate_x_is_already_midplate.md)** —
-   usually described as front-of-plate, requiring a trajectory re-solve to reach
-   the plane ABS actually judges at. Solving to y = 8.5/12 reproduces them to
-   0.00000 in with zero variance across 1,220 pitches: an algebraic identity, not
-   an approximation. This also matters practically, since the bulk Statcast export
+   the brief states Statcast reports these at the front of the plate ("you
+   can't use them directly — you have to re-solve the trajectory"), which was
+   true through 2025. Savant's own CSV documentation confirms the field was
+   redefined for 2026 "to align with the ABS system," and — worth knowing if
+   you work with this data — the historical record was backfilled under the
+   new definition, so a 2024 game queried today also returns middle-of-plate.
+   Solving to y = 8.5/12 reproduces the reported values to 0.00000 in with
+   zero variance across 1,220 pitches: an algebraic identity, not an
+   approximation. Matters practically too, since the bulk Statcast export
    ships no position anchor to re-solve from.
 
 ## Limitations
@@ -176,3 +220,7 @@ app/        Streamlit app + precomputed parquet (96 KB)
 
 See `IDEAS.md` for the v2 list — count-varying thresholds and a win-probability
 objective are the two that would move the number most.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).

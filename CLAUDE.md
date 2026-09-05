@@ -60,6 +60,21 @@ Update this checklist as things land.
   `center_distance_to_zone()` + `ball_edge_distance()` in `src/geometry.py`
   (kept as two separate named outputs — do not collapse them).
 
+  **Recomputed on the full season (2026-09-06), n=11 -> n=9,197.** The 27%
+  figure was a small-sample artifact and moved a lot, not a little. Ground
+  truth = `call_name` (the final post-review call). Naive (center-only)
+  classification disagrees with it on **34.1%** of all 9,197 season
+  challenges. Restricted to a rigorously defined borderline band
+  (`|center_distance| < BALL_RADIUS_FT`, i.e. within one ball radius of the
+  naive boundary — n=4,654, exactly half the season): naive disagreement rises
+  to **66.9%**, worse than a coin flip, since most genuinely borderline calls
+  need the radius correction to land on the correct side at all. The corrected
+  (`ball_edge_distance`) model matches the final call on 99.41% overall / 99.46%
+  within the borderline band — the small residual is consistent with the known
+  noise floor (listed-height error, the ~0.001 ft feed-precision floor). Use
+  34.1% / n=9,197 as the headline number; report the borderline-conditional
+  66.9% when the audience needs "how bad is it exactly where it matters."
+
 **Statcast coordinate system:**
 - `y = 0` is the back point of home plate
 - `plate_x` / `plate_z` are reported at the FRONT of the plate (`y = 17/12 ft`)
@@ -81,6 +96,20 @@ it is a long-standing convention, not an ABS-era change. Consequences:
   exports `vx0/vy0/vz0` and `ax/ay/az` but **no `x0/y0/z0` anchor**, so the
   re-solve is impossible there. `plate_x`/`plate_z` are the only route, and
   they are the right answer anyway.
+- **Correction to the correction (2026-09-06):** the "long-standing convention,
+  not an ABS-era change" claim two bullets up is wrong. Savant's own CSV docs
+  (`baseballsavant.mlb.com/csv-docs`, checked against raw HTML, not an AI
+  summary) say verbatim: "Through 2025, this was front-of-plate. From 2026 on,
+  this is middle-of-plate to align with the ABS system." It WAS an ABS-driven
+  redefinition. The reason a 2024 game still measures as midplate today is that
+  Statcast revises data retroactively (see ingest notes below) — evidently
+  including recomputing historical `plate_x`/`plate_z` under the new
+  definition. Querying old games now gives midplate; querying them in 2024
+  would not have. The R^2=1.0000 measurement itself still holds for data as it
+  exists today (which is what any current analysis uses) — only the "always
+  been this way" inference was wrong. Lesson: check the source's own field docs
+  before inferring a stable convention from a cross-season empirical match;
+  the match can be a signature of backfill instead.
 - The CSV's `plate_x`/`plate_z` are byte-identical to the Savant `gf` feed's,
   and CSV `at_bat_number` matches gf `ab_number` with no offset.
 
