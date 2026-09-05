@@ -17,10 +17,13 @@ Four independent checks, in the order they inform each other:
      base skill question is actually resolved.
 
 Run: python scripts/team_skill_test.py
-Output: data/team_skill_test.parquet (per-team z, sigma, CIs)
+Output: data/split_half.parquet       (per-team H1/H2 success rate)
+        data/team_significance.parquet (per-team z, p, Bonferroni-adjusted p)
+        data/team_sigma.parquet        (per-team-per-role sigma + bootstrap CI)
         prints the split-half r + CI and the spread/significance tests
 """
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import duckdb
@@ -32,6 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from geometry import center_distance_to_zone, ball_edge_distance
 from perception import fit_sigma
 
+MODEL_VERSION = "team_skill_test_v1"
 N_SIM = 20000
 N_BOOT = 300
 SEED = 2026
@@ -125,10 +129,12 @@ def per_team_significance(pt):
     pt["p_two_sided"] = 2 * (1 - stats.norm.cdf(pt.z.abs()))
     pt = pt.sort_values("z", key=lambda s: s.abs(), ascending=False)
 
+    n_teams = len(pt)
+    pt["p_bonferroni"] = np.minimum(1.0, pt.p_two_sided * n_teams)
+
     n_over_2se = (pt.z.abs() > 2).sum()
     expected = 30 * 2 * (1 - stats.norm.cdf(2))
     top = pt.iloc[0]
-    bonf = min(1.0, top.p_two_sided * 30)
 
     print("\n=== 3. PER-TEAM SIGNIFICANCE ===")
     print(f"league p0={p0:.4f}")
@@ -136,8 +142,8 @@ def per_team_significance(pt):
           .head(6).to_string(index=False))
     print(f"teams with |z|>2: {n_over_2se} of 30 (expected by chance: {expected:.2f})")
     print(f"max |z|: {top.team} z={top.z:.3f} raw p={top.p_two_sided:.5f} "
-          f"Bonferroni-adjusted (x30)={bonf:.4f}")
-    return pt[["team", "se", "z", "p_two_sided"]]
+          f"Bonferroni-adjusted (x{n_teams})={top.p_bonferroni:.4f}")
+    return pt[["team", "se", "z", "p_two_sided", "p_bonferroni"]]
 
 
 def per_team_sigma(opp):
@@ -170,6 +176,8 @@ def per_team_sigma(opp):
 
 
 def main():
+    generated_at = datetime.now(timezone.utc).isoformat()
+
     opp = load_opp_with_team()
     act = opp[opp.was_challenged].copy()
     pt = pd.read_parquet("app/data/per_team.parquet")
@@ -185,8 +193,14 @@ def main():
                            values=["n", "sigma_in", "sigma_ci_lo", "sigma_ci_hi"])
     print(wide.round(2).to_string())
 
-    sigma_tbl.to_parquet("data/team_skill_test.parquet", index=False)
-    print("\nsaved data/team_skill_test.parquet")
+    split_half_out = piv.reset_index().rename(columns={"H1": "h1_rate", "H2": "h2_rate"})
+    for df, name in ((split_half_out, "split_half"), (sig, "team_significance"),
+                      (sigma_tbl, "team_sigma")):
+        df["model_version"] = MODEL_VERSION
+        df["generated_at"] = generated_at
+        df.to_parquet(f"data/{name}.parquet", index=False)
+    print("\nsaved data/split_half.parquet, data/team_significance.parquet, "
+          "data/team_sigma.parquet")
 
     print("\n=== SUMMARY ===")
     print(f"split-half r={r:.3f}, 95% CI=[{ci_lo:.3f},{ci_hi:.3f}] -- AMBIGUOUS, per the "

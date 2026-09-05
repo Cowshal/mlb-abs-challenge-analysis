@@ -38,7 +38,6 @@ def main():
     chal["game_pk"] = chal.game_pk.astype(np.int64)
     chal["ab_number"] = chal.ab_number.astype(np.int64)
     chal["pitch_number"] = chal.pitch_number.astype(np.int64)
-    chal = chal.drop_duplicates(subset=["game_pk", "ab_number", "pitch_number"])
     print(f"{len(chal):,} challenges collected; {len(opp):,} opportunities")
 
     key = ["game_pk", "at_bat_number", "pitch_number"]

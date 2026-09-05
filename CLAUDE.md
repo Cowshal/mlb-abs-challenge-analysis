@@ -260,6 +260,21 @@ observed success rate means players are under-challenging.
      **2.04%** of pitches; **7.97%** fall in a zone where the rounding
      uncertainty alone makes the call genuinely ambiguous (0.05<P<0.95). Put
      both numbers in the writeup limitations section.
+   - **CORRECTION (2026-09-05):** `scripts/verify_ball_radius.py` had its own
+     copy of the schedule-doubleheader dedup bug found and fixed in
+     `collect_abs_challenges.py` (its `final_game_pks()` did not dedupe on
+     `game_pk`, so games listed twice in the schedule window were fetched and
+     appended twice). Fixed the same way and re-run: the robust-set count
+     moved from 203 to **201** batters (n>=3 usable vertical challenges); the
+     364-batter n>=1 count, and every reported mean/median/std/p95 diff
+     statistic and the 178-batter circularity check, were byte-identical
+     before and after the fix. The 979-pitch / 2.04% / 7.97% height-rounding
+     ambiguity figures above are from the pre-fix run and were NOT
+     recomputed (no current script reproduces them; flagging rather than
+     guessing) — given how little else moved, they are unlikely to have
+     shifted meaningfully, but treat them as unverified against the
+     corrected data. `README.md`'s "203 batters" limitations bullet has
+     been updated to 201.
 
 4. **Run expectancy** — `src/run_expectancy.py` builds RE(balls, strikes, outs,
    base state) from our own data into `data/run_expectancy.parquet` +

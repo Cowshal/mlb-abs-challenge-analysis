@@ -123,7 +123,6 @@ def main():
     ch["game_pk"] = ch.game_pk.astype(np.int64)
     ch["ab_number"] = ch.ab_number.astype(np.int64)
     ch["pitch_number"] = ch.pitch_number.astype(np.int64)
-    ch = ch.drop_duplicates(subset=["game_pk", "ab_number", "pitch_number"])
 
     act["game_pk"] = act.game_pk.astype(np.int64)
     act["at_bat_number"] = act.at_bat_number.astype(np.int64)

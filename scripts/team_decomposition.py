@@ -25,6 +25,12 @@ pd.set_option("display.width", 200)
 
 def main():
     pt = pd.read_parquet("app/data/per_team.parquet").copy()
+    # Inherit per_team.parquet's own stamp rather than mint a new one: this
+    # script is a pure re-derivation of per_team's numbers (ratios against a
+    # league baseline), not an independent model, so it should carry the same
+    # provenance as its one input rather than look like a separate pipeline.
+    model_version = pt.model_version.iloc[0] if "model_version" in pt.columns else "unstamped"
+    generated_at = pt.generated_at.iloc[0] if "generated_at" in pt.columns else None
 
     league_attempts_per_team = pt.actual_challenges.sum() / len(pt)
     league_success = pt.actual_correct.sum() / pt.actual_challenges.sum()
@@ -54,6 +60,8 @@ def main():
               "quality_ratio", "baseline_runs_at_volume", "actual_runs",
               "success_share", "leverage_share"]].sort_values(
         "total_ratio", ascending=False)
+    out["model_version"] = model_version
+    out["generated_at"] = generated_at
     out.to_parquet("data/team_decomposition.parquet", index=False)
 
     print("\n=== CIN check against the manual read ===")

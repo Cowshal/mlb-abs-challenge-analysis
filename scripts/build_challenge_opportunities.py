@@ -126,7 +126,6 @@ def main():
     chal = pd.read_parquet("data/abs_challenges.parquet")
     for c in ("game_pk", "ab_number", "pitch_number"):
         chal[c] = chal[c].astype(np.int64)
-    chal = chal.drop_duplicates(subset=["game_pk", "ab_number", "pitch_number"])
     key = ["game_pk", "at_bat_number", "pitch_number"]
     for c in key:
         df[c] = df[c].astype(np.int64)

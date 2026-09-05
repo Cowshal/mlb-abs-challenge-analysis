@@ -42,16 +42,29 @@ PITCH_FIELDS = [
 
 
 def final_game_pks():
+    """Every completed game_pk in the window, deduplicated.
+
+    Same schedule-API duplicate-listing issue fixed in
+    collect_abs_challenges.py: a game_pk can appear under more than one
+    date entry (doubleheader/makeup games), which without deduping here
+    would fetch and append that game's challenges twice.
+    """
     print(f"fetching schedule {START_DATE}..{END_DATE} ...")
     r = get_with_retries(
         "https://statsapi.mlb.com/api/v1/schedule",
         params={"sportId": 1, "startDate": START_DATE, "endDate": END_DATE},
     )
     pks = []
+    seen = set()
     for day in r.json().get("dates", []):
         for g in day.get("games", []):
-            if g.get("status", {}).get("abstractGameState") == "Final":
-                pks.append(g["gamePk"])
+            if g.get("status", {}).get("abstractGameState") != "Final":
+                continue
+            pk = g["gamePk"]
+            if pk in seen:
+                continue
+            seen.add(pk)
+            pks.append(pk)
     print(f"got {len(pks)} final games")
     return pks
 

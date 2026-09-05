@@ -30,15 +30,34 @@ PITCH_FIELDS = [
 
 
 def final_game_pks():
+    """Every completed game_pk in the window, deduplicated.
+
+    The schedule API lists a game_pk once per date it appears under, and a
+    single game_pk can appear under more than one date entry (confirmed
+    2026-09-05: 26 game_pks each appeared twice in this exact window, almost
+    certainly doubleheader/makeup-game listings carried on both their
+    original and rescheduled dates). Without deduplicating here, each such
+    game gets fetched and appended twice, silently doubling its challenges
+    in the saved output -- this bit us for real (121 duplicate rows across
+    those exact 26 games) before this fix. Dedupe at the source rather than
+    downstream: every script that reads data/abs_challenges.parquet is
+    entitled to assume it has no duplicate games in it.
+    """
     r = get_with_retries(
         "https://statsapi.mlb.com/api/v1/schedule",
         params={"sportId": 1, "startDate": START_DATE, "endDate": END_DATE},
     )
     pks = []
+    seen = set()
     for day in r.json().get("dates", []):
         for g in day.get("games", []):
-            if g.get("status", {}).get("abstractGameState") == "Final":
-                pks.append(g["gamePk"])
+            if g.get("status", {}).get("abstractGameState") != "Final":
+                continue
+            pk = g["gamePk"]
+            if pk in seen:
+                continue
+            seen.add(pk)
+            pks.append(pk)
     return pks
 
 
@@ -99,8 +118,18 @@ def main():
     print(f"\nTotal challenged pitches collected: {len(df)}")
     print(f"Games with fetch errors: {n_errors}")
     if len(df):
+        dup_play_id = df.duplicated("play_id").sum()
+        dup_key = df.duplicated(["game_pk", "ab_number", "pitch_number"]).sum()
+        if dup_play_id or dup_key:
+            raise RuntimeError(
+                f"data/abs_challenges.parquet would contain duplicate rows "
+                f"({dup_play_id} by play_id, {dup_key} by (game_pk, ab_number, "
+                f"pitch_number)) -- refusing to save. This is the exact failure "
+                f"mode fixed in final_game_pks() (duplicate game_pks from the "
+                f"schedule API); a duplicate surviving that fix means a new "
+                f"cause, not a rerun of the old one. Investigate before saving.")
         df.to_parquet("data/abs_challenges.parquet", index=False)
-        print("Saved to data/abs_challenges.parquet")
+        print("Saved to data/abs_challenges.parquet (no duplicate rows)")
         print(df["call_name"].value_counts())
         print(df["is_overturned"].value_counts())
 
