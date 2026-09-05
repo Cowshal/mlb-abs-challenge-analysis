@@ -1,4 +1,7 @@
-data/
+# anchored to the repo root: the raw/intermediate data dir is ignored, but
+# app/data/ holds the small precomputed parquet the deployed app needs and
+# MUST be committed. A bare "data/" matches at any depth and silently excludes it.
+/data/
 .venv/
 __pycache__/
 *.pyc

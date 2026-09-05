@@ -145,7 +145,7 @@ def simulate(opp, ov, seed=SEED):
     is_bat = opp.challenger == "batting"
     opp = opp.assign(team=np.where((is_bot & is_bat) | (~is_bot & ~is_bat), "home", "away"))
 
-    rows = []
+    rows, fires = [], []
     for (game_pk, team), g in opp.groupby(["game_pk", "team"], sort=False):
         k, used, correct, runs = 0, 0, 0, 0.0
         by_role = {"batting": [0, 0], "fielding": [0, 0]}  # [used, correct]
@@ -160,16 +160,20 @@ def simulate(opp, ov, seed=SEED):
             if r.p_post * r.dre > (1 - r.p_post) * C:
                 used += 1
                 by_role[r.challenger][0] += 1
-                if r.won_if_challenged:          # resolved against TRUTH
+                won = bool(r.won_if_challenged)   # resolved against TRUTH
+                if won:
                     correct += 1
                     runs += r.dre
                     by_role[r.challenger][1] += 1
                 else:
                     k += 1
-        rows.append({"team": team, "used": used, "correct": correct, "runs": runs,
+                fires.append({"game_pk": game_pk, "team": team, "role": r.challenger,
+                              "dre": r.dre, "won": won, "batter": r.batter})
+        rows.append({"game_pk": game_pk, "team": team,
+                     "used": used, "correct": correct, "runs": runs,
                      "bat_used": by_role["batting"][0], "bat_correct": by_role["batting"][1],
                      "fld_used": by_role["fielding"][0], "fld_correct": by_role["fielding"][1]})
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows), pd.DataFrame(fires)
 
 
 def summarize(sim, n_games):
@@ -198,14 +202,20 @@ def run_scenario(opp, sigma_ft, q, seed=SEED, label=""):
     """
     from perception import build_posterior_lookup, posterior_from_observation
 
+    # sigma may be a single value or per-role; catchers see the pitch from
+    # behind and batters from the side, so their noise is genuinely different
+    # and pooling the two throws away a real distinction.
+    sig = sigma_ft if isinstance(sigma_ft, dict) else {
+        "batting": sigma_ft, "fielding": sigma_ft}
+
     rng = np.random.default_rng(seed)
     opp = opp.copy()
     p_post = np.empty(len(opp))
     for side in ("batting", "fielding"):
         m = (opp.challenger == side).values
         d = opp.d.values[m]
-        o_grid, p_grid = build_posterior_lookup(d, sigma_ft, side)
-        obs = d + rng.normal(0.0, sigma_ft, size=len(d))
+        o_grid, p_grid = build_posterior_lookup(d, sig[side], side)
+        obs = d + rng.normal(0.0, sig[side], size=len(d))
         p_post[m] = posterior_from_observation(obs, o_grid, p_grid)
     opp["p_post"] = p_post
     opp["won_if_challenged"] = np.where(opp.challenger == "batting", opp.d < 0, opp.d > 0)
@@ -216,13 +226,15 @@ def run_scenario(opp, sigma_ft, q, seed=SEED, label=""):
              for side in ("batting", "fielding")}
     W = solve(pools, q, team_bats_on_even_t=True, seed=seed)
     ov = option_values(W)
-    sim = simulate(opp, ov, seed=seed)
+    sim, fires = simulate(opp, ov, seed=seed)
     out = summarize(sim, opp.game_pk.nunique())
     out["label"] = label
-    out["sigma_in"] = sigma_ft * 12
+    out["sigma_in"] = np.mean(list(sig.values())) * 12
+    out["sigma_bat_in"] = sig["batting"] * 12
+    out["sigma_fld_in"] = sig["fielding"] * 12
     out["C_k0"] = ov[ov.t == 1].iloc[0].C_k0
     out["C_k1"] = ov[ov.t == 1].iloc[0].C_k1
-    return out, ov
+    return out, ov, sim, fires
 
 
 def main():
@@ -302,36 +314,71 @@ def decomposition(q):
     opp["t"] = (opp.inning - 1) * 2 + np.where(opp.inning_topbot == "Bot", 2, 1)
 
     sigmas = pd.read_parquet("data/perception_sigma.parquet")
-    player_sigma = float(sigmas.sigma_ft.mean())
-    print(f"\nfitted player perceptual sigma: {player_sigma*12:.3f} in "
-          f"(by role: {dict(zip(sigmas.side, (sigmas.sigma_in).round(3)))})")
+    player_sigma = dict(zip(sigmas.side, sigmas.sigma_ft))
+    print(f"\nfitted player sigma by role (inches): "
+          f"{ {k: round(v*12, 3) for k, v in player_sigma.items()} }")
 
     rows = [observed_row(opp)]
-    for sig, label in ((player_sigma, "optimal @ player sigma"),
-                       (HAWKEYE_SIGMA_FT, "optimal @ Hawk-Eye sigma")):
-        r, _ = run_scenario(opp, sig, q, label=label)
-        rows.append(r)
+    r_ply, _, _, fires_ply = run_scenario(opp, player_sigma, q,
+                                          label="optimal @ player sigma")
+    rows.append(r_ply)
+    r_ceil, _, _, fires_ceil = run_scenario(opp, HAWKEYE_SIGMA_FT, q,
+                                            label=f"ceiling @ sigma={HAWKEYE_SIGMA_FT*12:.1f}in")
+    rows.append(r_ceil)
     res = pd.DataFrame(rows)
 
     print("\n=== THREE-WAY DECOMPOSITION (per team per game) ===")
-    cols = ["label", "sigma_in", "challenges_per_team_game", "success_rate",
-            "runs_per_team_game"]
+    cols = ["label", "sigma_bat_in", "sigma_fld_in", "challenges_per_team_game",
+            "success_rate", "runs_per_team_game"]
     print(res[cols].to_string(index=False, float_format=lambda v: f"{v:.3f}"))
 
     obs, ply, hawk = (res.runs_per_team_game.iloc[i] for i in (0, 1, 2))
-    print(f"\n  decision gap   (player-optimal - observed) = {ply-obs:+.3f} runs/team-game"
-          f"  = {(ply-obs)*162:+.1f} runs/team-season   <-- actionable")
-    print(f"  information gap (Hawk-Eye - player-optimal) = {hawk-ply:+.3f} runs/team-game"
-          f"  = {(hawk-ply)*162:+.1f} runs/team-season   <-- not coachable")
-    print(f"  total gap                                   = {hawk-obs:+.3f} runs/team-game"
-          f"  = {(hawk-obs)*162:+.1f} runs/team-season")
+    print(f"\n  decision gap    (player-optimal - observed) = {ply-obs:+.3f} runs/team-game"
+          f"  = {(ply-obs)*162:+.1f} runs/team-season   <-- actionable, sigma-independent")
+    print(f"  information gap (ceiling - player-optimal)  = {hawk-ply:+.3f} runs/team-game"
+          f"  = {(hawk-ply)*162:+.1f} runs/team-season   <-- depends on an ASSUMED ceiling")
 
     print("\n=== BY CHALLENGER ROLE ===")
     rcols = ["label", "bat_per_team_game", "bat_success", "fld_per_team_game", "fld_success"]
     print(res[rcols].to_string(index=False, float_format=lambda v: f"{v:.3f}"))
 
+    # --- is the optimal policy "challenge more" or "challenge different"? ---
+    print("\n=== LEVERAGE OF CHALLENGED PITCHES (dre distribution) ===")
+    act = opp[opp.was_challenged]
+    lev = []
+    for lbl, dre, won, role in (
+            ("observed 2026", act.dre, act.overturned, act.challenger),
+            ("optimal @ player sigma", fires_ply.dre, fires_ply.won, fires_ply.role)):
+        for r in ("batting", "fielding", "all"):
+            m = slice(None) if r == "all" else (role == r).values
+            d, w = np.asarray(dre)[m], np.asarray(won)[m]
+            lev.append({"policy": lbl, "role": r, "n": len(d),
+                        "mean_dre": d.mean(), "median_dre": np.median(d),
+                        "p90_dre": np.percentile(d, 90),
+                        "runs_per_overturn": d[w].sum() / max(w.sum(), 1),
+                        "success": w.mean()})
+    lev = pd.DataFrame(lev)
+    print(lev.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+
+    # --- ceiling is an assumption, so show it as a curve, not a point ---
+    print("\n=== SENSITIVITY: information gap vs assumed ceiling sigma ===")
+    print("(the decision gap does not appear here -- it uses only the fitted "
+          "player sigma and is unaffected by this assumption)")
+    sens = []
+    for s_in in (0.10, 0.25, 0.50, 0.75, 1.00):
+        r, _, _, _ = run_scenario(opp, s_in / 12.0, q, label=f"ceiling {s_in}in")
+        sens.append({"ceiling_sigma_in": s_in,
+                     "runs_per_team_game": r["runs_per_team_game"],
+                     "info_gap_runs_per_team_game": r["runs_per_team_game"] - ply,
+                     "info_gap_runs_per_team_season": (r["runs_per_team_game"] - ply) * 162})
+    sens = pd.DataFrame(sens)
+    print(sens.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+
     res.to_parquet("data/policy_decomposition.parquet", index=False)
-    print("\nsaved data/policy_decomposition.parquet")
+    lev.to_parquet("data/leverage_comparison.parquet", index=False)
+    sens.to_parquet("data/ceiling_sensitivity.parquet", index=False)
+    fires_ply.to_parquet("data/optimal_fires.parquet", index=False)
+    print("\nsaved decomposition, leverage, sensitivity, and fires")
 
 
 if __name__ == "__main__":

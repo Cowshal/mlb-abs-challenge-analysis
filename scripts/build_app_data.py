@@ -1,0 +1,139 @@
+"""
+Precompute everything the Streamlit app needs into app/data/.
+
+The app must not run a Statcast pull, solve the DP, or touch DuckDB. It loads
+these files and does nothing but filter and plot.
+
+Run: python scripts/build_app_data.py
+"""
+import sys
+from pathlib import Path
+
+import duckdb
+import numpy as np
+import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from net import get_with_retries
+
+OUT = Path("app/data")
+SEASON = 2026
+
+
+def fetch_names(ids):
+    names = {}
+    ids = [int(i) for i in ids]
+    for i in range(0, len(ids), 50):
+        r = get_with_retries("https://statsapi.mlb.com/api/v1/people",
+                             params={"personIds": ",".join(str(b) for b in ids[i:i + 50])})
+        for p in r.json().get("people", []):
+            names[p["id"]] = p.get("fullName")
+    return names
+
+
+def team_of(inning_topbot, challenger):
+    """Which side (home/away) an opportunity belongs to."""
+    bot = inning_topbot == "Bot"
+    bat = challenger == "batting"
+    return np.where((bot & bat) | (~bot & ~bat), "home", "away")
+
+
+def main():
+    OUT.mkdir(parents=True, exist_ok=True)
+    con = duckdb.connect("data/baseball.duckdb")
+
+    opp = pd.read_parquet("data/challenge_opportunities.parquet")
+    fires = pd.read_parquet("data/optimal_fires.parquet")
+
+    # ---- 1. headline decomposition + sensitivity + leverage ----
+    for name in ("policy_decomposition", "ceiling_sensitivity", "leverage_comparison"):
+        pd.read_parquet(f"data/{name}.parquet").to_parquet(OUT / f"{name}.parquet", index=False)
+
+    # ---- 2. optimal threshold surface: p* = C / (dre + C) ----
+    ov = pd.read_parquet("data/option_values.parquet")
+    ov = ov[ov.t <= 18]
+    dre_grid = np.round(np.arange(0.02, 1.21, 0.02), 3)
+    rows = []
+    for r in ov.itertuples():
+        for dre in dre_grid:
+            for k, C in ((0, r.C_k0), (1, r.C_k1)):
+                rows.append({"inning": r.inning, "half": r.half, "t": r.t,
+                             "challenges_remaining": 2 - k, "dre": dre,
+                             "p_star": C / (dre + C)})
+    pd.DataFrame(rows).to_parquet(OUT / "threshold_surface.parquet", index=False)
+
+    # ---- 3. per-team runs left on the table ----
+    teams = con.execute(f"""
+        SELECT DISTINCT game_pk, home_team, away_team
+        FROM statcast WHERE game_year = {SEASON}
+    """).df()
+    teams["game_pk"] = teams.game_pk.astype(np.int64)
+
+    act = opp[opp.was_challenged].copy()
+    act["side"] = team_of(act.inning_topbot.values, act.challenger.values)
+    act = act.merge(teams, on="game_pk", how="left")
+    act["team"] = np.where(act.side == "home", act.home_team, act.away_team)
+
+    fires = fires.merge(teams, left_on="game_pk", right_on="game_pk", how="left")
+    fires["team_abbr"] = np.where(fires.team == "home", fires.home_team, fires.away_team)
+
+    actual = act.groupby("team").apply(
+        lambda g: pd.Series({"actual_challenges": len(g),
+                             "actual_correct": int(g.overturned.sum()),
+                             "actual_runs": g.dre[g.overturned].sum()}),
+        include_groups=False).reset_index()
+    optimal = fires.groupby("team_abbr").apply(
+        lambda g: pd.Series({"optimal_challenges": len(g),
+                             "optimal_correct": int(g.won.sum()),
+                             "optimal_runs": g.dre[g.won].sum()}),
+        include_groups=False).reset_index().rename(columns={"team_abbr": "team"})
+
+    games = pd.concat([
+        teams[["game_pk", "home_team"]].rename(columns={"home_team": "team"}),
+        teams[["game_pk", "away_team"]].rename(columns={"away_team": "team"}),
+    ]).groupby("team").game_pk.nunique().rename("games").reset_index()
+
+    per_team = actual.merge(optimal, on="team", how="outer").merge(games, on="team", how="left")
+    per_team["runs_left_on_table"] = per_team.optimal_runs - per_team.actual_runs
+    per_team["runs_left_per_game"] = per_team.runs_left_on_table / per_team.games
+    per_team["actual_success"] = per_team.actual_correct / per_team.actual_challenges
+    per_team["full_season_pace"] = per_team.runs_left_per_game * 162
+    per_team = per_team.sort_values("runs_left_on_table", ascending=False)
+    per_team.to_parquet(OUT / "per_team.parquet", index=False)
+
+    # ---- 4. per-batter (batting-role challenges only) ----
+    act_b = act[act.challenger == "batting"]
+    fir_b = fires[fires.role == "batting"]
+    ab = act_b.groupby("batter").apply(
+        lambda g: pd.Series({"actual_challenges": len(g),
+                             "actual_runs": g.dre[g.overturned].sum(),
+                             "actual_correct": int(g.overturned.sum())}),
+        include_groups=False).reset_index()
+    ob = fir_b.groupby("batter").apply(
+        lambda g: pd.Series({"optimal_challenges": len(g),
+                             "optimal_runs": g.dre[g.won].sum()}),
+        include_groups=False).reset_index()
+    per_batter = ab.merge(ob, on="batter", how="outer").fillna(0)
+    per_batter["runs_left_on_table"] = per_batter.optimal_runs - per_batter.actual_runs
+    per_batter = per_batter[per_batter.optimal_challenges >= 5]
+    names = fetch_names(per_batter.batter.unique())
+    per_batter["player"] = per_batter.batter.map(names)
+    per_batter["actual_success"] = np.where(
+        per_batter.actual_challenges > 0,
+        per_batter.actual_correct / per_batter.actual_challenges.replace(0, np.nan), np.nan)
+    per_batter = per_batter.sort_values("runs_left_on_table", ascending=False)
+    per_batter.to_parquet(OUT / "per_batter.parquet", index=False)
+
+    # ---- 5. fitted perception sigma ----
+    pd.read_parquet("data/perception_sigma.parquet").to_parquet(
+        OUT / "perception_sigma.parquet", index=False)
+
+    total = sum(f.stat().st_size for f in OUT.glob("*.parquet"))
+    print(f"wrote {len(list(OUT.glob('*.parquet')))} files to {OUT}, "
+          f"{total/1e6:.2f} MB total (budget 20 MB)")
+    for f in sorted(OUT.glob("*.parquet")):
+        print(f"  {f.name:32s} {f.stat().st_size/1e3:8.1f} KB")
+
+
+if __name__ == "__main__":
+    main()
