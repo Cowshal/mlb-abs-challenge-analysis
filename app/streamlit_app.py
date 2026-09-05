@@ -13,7 +13,7 @@ import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from geometry import center_distance_to_zone, ball_edge_distance, HALF_WIDTH
+from geometry import center_distance_to_zone, ball_edge_distance, HALF_WIDTH, BALL_RADIUS_FT
 from run_expectancy import flip_value
 
 DATA = Path(__file__).parent / "data"
@@ -105,6 +105,48 @@ def posterior_grids():
 # inches around this.
 REPRESENTATIVE_HEIGHT_FT = 6.00
 
+# Dimensionally-accurate zone plot geometry, all in inches. The rule zone
+# itself is close to square (17 in wide, ~19 in tall for a 6'0" batter) --
+# genuinely not "noticeably taller than wide" on its own; what makes the
+# panel read as a strike zone and not an abstract square is the ball-radius
+# buffer (a headline finding: ABS's real boundary is the rulebook rectangle
+# inflated by one ball radius, not the rectangle itself) plus a true-to-scale
+# home plate diagram anchored underneath it for orientation. The aspect
+# ratio below falls out of those real dimensions -- it is not chosen to hit
+# a target ratio.
+ZONE_WIDTH_IN = HALF_WIDTH * 2 * 12                              # 17.0 in, rulebook width
+ZONE_TOP_IN = 0.535 * REPRESENTATIVE_HEIGHT_FT * 12               # ABS top, league-average batter
+ZONE_BOT_IN = 0.270 * REPRESENTATIVE_HEIGHT_FT * 12               # ABS bottom
+BALL_RADIUS_IN = BALL_RADIUS_FT * 12                              # ~1.45 in
+CLICK_MARGIN_IN = 4.0     # room to click a clearly-out pitch, same on every side
+PLATE_GAP_IN = 1.5        # visual gap between the ball-radius boundary and the plate
+PLATE_DEPTH_IN = 17.0     # true plate depth, back edge to point (rule 2.03)
+
+PLOT_X_LO = -(ZONE_WIDTH_IN / 2 + BALL_RADIUS_IN + CLICK_MARGIN_IN)
+PLOT_X_HI = +(ZONE_WIDTH_IN / 2 + BALL_RADIUS_IN + CLICK_MARGIN_IN)
+PLOT_Z_HI = ZONE_TOP_IN + BALL_RADIUS_IN + CLICK_MARGIN_IN
+PLATE_TOP_Z = ZONE_BOT_IN - BALL_RADIUS_IN - PLATE_GAP_IN
+PLATE_BOT_Z = PLATE_TOP_Z - PLATE_DEPTH_IN
+PLOT_Z_LO = PLATE_BOT_Z - 1.0
+
+PLOT_WIDTH_IN = PLOT_X_HI - PLOT_X_LO
+PLOT_HEIGHT_IN = PLOT_Z_HI - PLOT_Z_LO
+ZONE_PLOT_WIDTH_PX = 380
+ZONE_PLOT_HEIGHT_PX = round(ZONE_PLOT_WIDTH_PX * PLOT_HEIGHT_IN / PLOT_WIDTH_IN)
+
+
+def home_plate_outline(top_z):
+    """True-scale home plate footprint (17 in back edge, 8.5 in perpendicular
+    sides, meeting at a point 17 in deep), back edge at height `top_z`,
+    purely as a to-scale orientation reference -- not a claim about where a
+    pitch's z-coordinate physically is relative to the ground."""
+    w = ZONE_WIDTH_IN / 2
+    pts = [(-w, top_z), (w, top_z), (w, top_z - 8.5),
+           (0, top_z - PLATE_DEPTH_IN), (-w, top_z - 8.5), (-w, top_z)]
+    df = pd.DataFrame(pts, columns=["x", "z"])
+    df["order"] = range(len(df))
+    return df
+
 
 def compute_dre(balls, strikes, outs, r1, r2, r3):
     return flip_value(re_lookup_dict(), balls, strikes, outs, (r1, r2, r3))
@@ -122,17 +164,16 @@ def option_value_at(t):
 
 
 @st.cache_data
-def zone_click_grid(role, height_ft=REPRESENTATIVE_HEIGHT_FT, nx=22, nz=18):
-    """A grid of cells covering the zone plus a margin, each carrying the
-    model's P(call was wrong) for a click at that location -- shaded as a
-    heatmap and also the set of clickable targets for the selection."""
-    half_w_in = HALF_WIDTH * 12
-    top_in = 0.535 * height_ft * 12
-    bot_in = 0.270 * height_ft * 12
-    pad_x = half_w_in * 0.6
-    pad_z = (top_in - bot_in) * 0.4
-    x_edges = np.linspace(-half_w_in - pad_x, half_w_in + pad_x, nx + 1)
-    z_edges = np.linspace(bot_in - pad_z, top_in + pad_z, nz + 1)
+def zone_click_grid(role, height_ft=REPRESENTATIVE_HEIGHT_FT, cell_in=1.3):
+    """A grid of cells covering the full dimensionally-accurate plot area
+    (zone + ball-radius buffer + click margin + the space reserved for the
+    plate diagram), each carrying the model's P(call was wrong) for a click
+    at that location -- shaded as a heatmap and also the set of clickable
+    targets for the selection."""
+    nx = max(1, round(PLOT_WIDTH_IN / cell_in))
+    nz = max(1, round(PLOT_HEIGHT_IN / cell_in))
+    x_edges = np.linspace(PLOT_X_LO, PLOT_X_HI, nx + 1)
+    z_edges = np.linspace(PLOT_Z_LO, PLOT_Z_HI, nz + 1)
     xc = (x_edges[:-1] + x_edges[1:]) / 2
     zc = (z_edges[:-1] + z_edges[1:]) / 2
 
@@ -512,20 +553,23 @@ try:
                 "Click a spot in the zone for the model's own estimate of P(the call "
                 "was wrong), based on how precisely a player in this role actually "
                 "reads pitch location (measured from real 2026 challenges, never "
-                "assumed). Or skip straight to the confidence slider below."
+                "assumed). Or skip straight to the confidence slider below. Drawn to "
+                "true scale — 17 inches wide, and the vertical extent set by the ABS "
+                "rule (53.5% to 27% of a league-average batter's height) — so the "
+                "panel is genuinely a strike zone, not a stretched square."
             )
 
             height_ft = REPRESENTATIVE_HEIGHT_FT
-            half_w_in, top_in, bot_in = HALF_WIDTH * 12, 0.535 * height_ft * 12, 0.270 * height_ft * 12
             grid = zone_click_grid(role)
             click = alt.selection_point(name="pt", fields=["xc", "zc"], nearest=True,
                                         on="click", empty=False)
+            x_scale = alt.Scale(domain=[PLOT_X_LO, PLOT_X_HI])
+            z_scale = alt.Scale(domain=[PLOT_Z_LO, PLOT_Z_HI])
             heat = alt.Chart(grid).mark_rect().encode(
                 x=alt.X("x0:Q", title="Horizontal location (inches from the plate's center)",
-                        scale=alt.Scale(domain=[grid.x0.min(), grid.x1.max()])),
+                        scale=x_scale),
                 x2="x1:Q",
-                y=alt.Y("z1:Q", title="Height off the ground (inches)",
-                        scale=alt.Scale(domain=[grid.z0.min(), grid.z1.max()])),
+                y=alt.Y("z1:Q", title="Height off the ground (inches)", scale=z_scale),
                 y2="z0:Q",
                 color=alt.Color("p_wrong:Q", title="Model's P(wrong)",
                                 scale=alt.Scale(scheme="oranges", domain=[0, 1]),
@@ -533,13 +577,36 @@ try:
                 tooltip=[alt.Tooltip("xc:Q", title="Horizontal (in)", format=".1f"),
                          alt.Tooltip("zc:Q", title="Height (in)", format=".1f"),
                          alt.Tooltip("p_wrong:Q", title="P(wrong)", format=".0%")],
-            ).add_params(click).properties(height=360)
-            outline = alt.Chart(pd.DataFrame([
-                {"x0": -half_w_in, "x1": half_w_in, "z0": bot_in, "z1": top_in}
+            ).add_params(click).properties(
+                width=ZONE_PLOT_WIDTH_PX, height=ZONE_PLOT_HEIGHT_PX)
+            rule_zone = alt.Chart(pd.DataFrame([
+                {"x0": -ZONE_WIDTH_IN / 2, "x1": ZONE_WIDTH_IN / 2,
+                 "z0": ZONE_BOT_IN, "z1": ZONE_TOP_IN}
             ])).mark_rect(fill=None, stroke="#0F172A", strokeWidth=2).encode(
-                x="x0:Q", x2="x1:Q", y="z1:Q", y2="z0:Q")
+                x=alt.X("x0:Q", scale=x_scale), x2="x1:Q",
+                y=alt.Y("z1:Q", scale=z_scale), y2="z0:Q")
+            abs_boundary = alt.Chart(pd.DataFrame([
+                {"x0": -ZONE_WIDTH_IN / 2 - BALL_RADIUS_IN, "x1": ZONE_WIDTH_IN / 2 + BALL_RADIUS_IN,
+                 "z0": ZONE_BOT_IN - BALL_RADIUS_IN, "z1": ZONE_TOP_IN + BALL_RADIUS_IN}
+            ])).mark_rect(fill=None, stroke="#0F172A", strokeWidth=1.5, strokeDash=[5, 3]).encode(
+                x=alt.X("x0:Q", scale=x_scale), x2="x1:Q",
+                y=alt.Y("z1:Q", scale=z_scale), y2="z0:Q")
+            plate = alt.Chart(home_plate_outline(PLATE_TOP_Z)).mark_line(
+                color="#0F172A", strokeWidth=2, fill="#E2E8F0", fillOpacity=0.9).encode(
+                x=alt.X("x:Q", scale=x_scale), y=alt.Y("z:Q", scale=z_scale), order="order:O")
 
-            event = st.altair_chart(heat + outline, on_select="rerun", key=f"zone_chart_{role}")
+            event = st.altair_chart(
+                heat + abs_boundary + rule_zone + plate,
+                on_select="rerun", key=f"zone_chart_{role}", width="content")
+            st.caption(
+                "Solid box: the rulebook strike zone (17 in × the ABS top/bottom "
+                "percentages). Dashed box: the actual ABS boundary, one ball-radius "
+                "(~1.45 in) further out on every side — a pitch whose center misses "
+                "the solid box can still be a strike if the ball's edge reaches it. "
+                "Home plate is drawn to scale for a width reference, positioned just "
+                "below the zone for compactness — not at its true height (the real "
+                "plate sits at the ground, well below this view)."
+            )
             picked = None
             try:
                 sel = event.selection.get("pt") if hasattr(event, "selection") else \
