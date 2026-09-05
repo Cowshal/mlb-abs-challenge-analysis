@@ -10,11 +10,6 @@ and the one I want you to sit with before reading anything else: **a correct
 challenge is given back.** Only a wrong one costs you. A team that keeps
 winning its challenges never runs out.
 
-That's a strange kind of resource. It isn't "you get two lottery tickets, use
-them wisely." It's closer to "you get two strikes against you, and you can
-swing as many times as you want as long as you keep connecting." The cost of
-challenging isn't the challenge — it's being wrong.
-
 Given that, look at how players are actually behaving. Across 9,037
 challenges in the 2026 season, the league-wide success rate is 53.7%. Just
 above a coin flip.
@@ -54,27 +49,10 @@ error. A coin flip you'd lose more often than win. Once I added the radius
 correction, the fit against MLB's own numbers came back exact to five decimal
 places, matching a real baseball's radius almost to the millimeter.
 
-The second surprise came from a more basic place: the coordinates themselves.
-Statcast reports `plate_x` and `plate_z`, a pitch's position at the plate.
-The standard advice — including in the project brief I was working from — is
-that these are measured at the *front* of the plate, and that judging the ABS
-zone (measured at the plate's *middle*) requires re-solving the pitch's
-trajectory to get there.
-
-I built that re-solve. Then, almost as a sanity check, I compared its output
-to the raw `plate_x` value already sitting in the data. They matched — not
-approximately, to eleven decimal places, with zero variance across more than
-a thousand pitches. `plate_x` was already the number I was trying to compute.
-It turned out MLB had redefined the field for 2026 specifically to align with
-ABS, and — this is the part that actually explains the confusion — quietly
-backfilled the historical data to match, so a 2024 game queried today also
-returns the new definition. Anyone testing against old data, the way I first
-did, would get exactly the wrong impression.
-
-Neither fact was hidden. Both were checkable in an afternoon. Neither had
-been checked, at least not in the material I was handed. That's the real
-theme of this project: at almost every step, the gap between "commonly
-assumed" and "actually true" was one measurement away.
+That fact wasn't hidden. It was checkable in an afternoon. It hadn't been
+checked, at least not in the material I was handed. That's the real theme of
+this project: at almost every step, the gap between "commonly assumed" and
+"actually true" was one measurement away.
 
 ## How you measure what a player could see
 
@@ -195,22 +173,14 @@ should challenge more. Any analysis that fits a single noise parameter
 across both roles will get this backwards, with no way to tell from the fit
 alone that it's happened.
 
-## Whether any of this is a repeatable skill, I honestly don't know
+## A repeatable skill, or just who was on the roster?
 
 Once you can rank teams by runs left on the table, the obvious next move is
 to publish the leaderboard and let people argue about who's good at this.
 Before doing that, I tried to break it.
 
-Runs gained factors exactly as attempts × success rate × mean stake per
-overturn, so the first thing worth checking is *why* a team leads — Cincinnati's
-edge, for instance, is almost entirely quality (17% above league on success
-rate, 13% above on stake per overturn, at essentially league-average volume),
-while Minnesota's is almost entirely volume (27% more attempts at a
-league-average success rate). Two very different paths to a similar-looking
-rank.
-
-That's a reason for caution, not a verdict, so I ran the actual test:
-split each team's season by date and correlate first-half success rate
+So I ran the actual test: split each team's season by date and correlate
+first-half success rate
 against second-half. If challenge accuracy is a real, stable team skill,
 teams that are good in April through June should still be good in July
 through September. Across all 30 teams, the correlation came back at
@@ -228,11 +198,6 @@ survives a Bonferroni correction for having checked all 30 teams
 (p ≈ 0.02). There is more real variation across teams than chance alone
 produces. It just isn't the kind of variation that clearly carries over
 from one half of a season to the other.
-
-I also fit perceptual noise separately for every team, split by role, to
-see whether the catcher-vantage-point story from the section above shows up
-team by team. It mostly does — 28 of 30 teams read fielding challenges more
-precisely than batting challenges, matching the league pattern exactly.
 
 The split-half test also has an answer at the wrong level. Rosters change
 mid-season — trades, call-ups, injuries — so a real, stable trait belonging
@@ -275,12 +240,11 @@ hides real variation between individual players, and a team could act on
 that directly. The second is a win-probability objective instead of runs;
 the model right now is indifferent to score, so it values a close-game
 challenge the same as one in a blowout, which isn't how anyone actually
-values one. The third is simply a second season of ABS data — it would turn
-the team-skill question above from a within-season split-half (noisy by
-construction, at ~300 challenges per team per half) into a genuine
-year-over-year correlation, which is the actual test that question needs.
-2026 is the system's first year, and some of what looks like a stable strategy gap
-could still be first-year unfamiliarity working itself out.
+values one. The third is simply a second season of ABS data, to turn the personnel-level
+reliability above into a genuine year-over-year test rather than a
+within-season split. 2026 is the system's first year, and some of what
+looks like a stable pattern could still be first-year unfamiliarity working
+itself out.
 
 ## Limitations, honestly
 
@@ -302,8 +266,3 @@ are in any absolute sense, because there's no independent measurement
 anywhere in the pipeline to check against. Any claim about a
 "perfect-information" ceiling is therefore an assumption, not a measurement,
 and I've reported it as a range rather than a single number for that reason.
-
-Finally, this is one partial season of a genuinely new system. Some of the
-gap I'm finding may close on its own as players get more reps under real
-game conditions — worth knowing before anyone treats 10 runs as a permanent
-inefficiency rather than a snapshot of a league still learning the rules.
