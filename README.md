@@ -16,6 +16,13 @@ The mechanism is not volume. **The optimal policy wins a *smaller* share of its
 challenges than teams currently do (43% vs 54%) and still nets more runs, because
 the calls it picks are worth more.** Challenge different, not challenge more.
 
+That policy result rests on getting the zone geometry right, and the geometry
+finding is the more surprising number in this repo: ABS rules a pitch a strike if
+*any part of the ball* — not its center — crosses the zone. Measuring from the
+center instead, which is the natural first approach, gets **two out of every
+three genuinely close calls wrong**. Not a rounding error — a coin flip you'd
+lose more often than win.
+
 ## The decomposition
 
 | | challenges / team-game | success rate | runs / team-game |
@@ -113,15 +120,16 @@ construction. As an out-of-fit check, the model reproduces the known 45%/59% spl
 
 ## Method
 
-- **Zone geometry** validated against MLB's own `edge_distance` at R² = 1.0000
-  (slope 0.9999, intercept 0.1208 ft — exactly one ball radius). ABS applies the
-  "any part of the ball over the zone" rule, so the boundary is the rectangle
-  inflated by a ball radius. Measuring from the ball's centre instead disagrees
-  with MLB's actual ruling on **34.1%** of all 9,197 challenges in the 2026
-  season; restricted to a defined borderline band (within one ball radius of the
-  centre-based boundary, n=4,654 — half the season), that rises to **66.9%**,
-  worse than a coin flip. The corrected model matches MLB's ruling 99.4% of the
-  time.
+- **Zone geometry.** ABS applies the "any part of the ball over the zone" rule,
+  so the boundary is the rectangle inflated by a ball radius, not the rectangle
+  itself. Restricted to a rigorously defined borderline band (within one ball
+  radius of the centre-based boundary, n=4,654 — half of all 9,197 season
+  challenges), measuring from the ball's centre instead of its edge disagrees
+  with MLB's actual ruling on **66.9%** of them — worse than a coin flip.
+  Across all 9,197 challenges unconditionally, the centre-only error rate is
+  34.1%. Validated against MLB's own `edge_distance` at R² = 1.0000 (slope
+  0.9999, intercept 0.1208 ft — exactly one ball radius); the corrected model
+  matches MLB's ruling 99.4% of the time.
 - **Batter heights** backed out per batter by inverting the zone equation against
   real challenges. Listed heights turn out to be true heights rounded to the
   nearest inch (KS test against Uniform(±0.5 in): p = 0.49). Two independent
