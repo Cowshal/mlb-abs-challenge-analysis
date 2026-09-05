@@ -282,6 +282,20 @@ with tab2:
         "worth challenging on a hunch, while a low-stakes call is only worth it when "
         "you're nearly certain.*"
     )
+    st.markdown(
+        "**What \"confidence\" means here.** Confidence is the probability the call "
+        "was actually wrong — a number, not a feeling. The model knows exactly where "
+        "the pitch crossed the plate and exactly where the zone's edges were; the "
+        "player doesn't. He saw it once, from the side or from behind the plate, in "
+        "well under half a second. We didn't assume how precisely players judge "
+        "that — we measured it from *where they actually chose to challenge*: about "
+        "**2.75 inches** of error for batters and **1.99 inches** for catchers and "
+        "pitchers (how far off a player's read of the pitch's location tends to be). "
+        "So \"challenge at 15% confidence\" means: even if a pitch like this one is "
+        "actually the wrong call only 15% of the time, challenging it is still worth "
+        "it — because a correct challenge costs nothing, and this particular call is "
+        "worth about 0.6 runs if you're right."
+    )
     st.caption(
         "A full-count flip with the bases loaded is worth roughly 0.6–1.0 runs; a 0-0 "
         "take with nobody on is worth under 0.05. The threshold moves enormously across "
