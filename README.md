@@ -152,6 +152,13 @@ average reverses it** — the pooled model says batters should challenge more. A
 analysis that estimates a single league-wide noise parameter will get this
 backwards.
 
+**It also replicates team by team.** Fitting σ separately for every team, split
+by role: **28 of 30 teams** individually read fielding challenges more precisely
+than batting challenges — the same pattern found leaguewide, not an artifact of
+pooling everyone together. Unlike the team-skill question above, this doesn't
+depend on any reliability test — it's a direct, team-by-team confirmation of
+the role effect.
+
 The σ estimates come from *where* players chose to challenge — never from how
 often they challenged or how often they were right. That matters: fitting σ to
 volume and success rate would be circular, forcing the measured gap to zero by

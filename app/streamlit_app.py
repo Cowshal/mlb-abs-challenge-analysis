@@ -399,17 +399,49 @@ with tab3:
     st.subheader("Is this a repeatable team skill?")
     st.markdown(
         "##### In short\n"
-        "**It's personnel, not a team skill.** Teams differ more than pure "
-        "chance alone would produce in a single season, but that spread fails "
-        "the standard test for a team trait: split each team's season in half, "
-        "and first-half success barely predicts second-half success. Splitting "
-        "*players* in half instead of teams tells a different story — the same "
-        "test reads meaningfully higher at the player level. Rosters turn over "
-        "mid-season, so a real trait belonging to specific players can still "
-        "look unstable at the team level. Read the team table above as a "
-        "snapshot of who was on the roster in 2026, not a permanent ranking of "
-        "front offices."
+        "**The clearest team-level result replicates the league-wide finding "
+        "above: 28 of 30 teams individually read fielding challenges more "
+        "precisely than batting challenges.** Whether the overall spread in "
+        "team success is a stable *skill* is murkier — it's more than chance "
+        "would produce, but fails a team-level reliability test. That's "
+        "because it's personnel, not a team trait: rosters turn over "
+        "mid-season, and the same reliability test reads meaningfully higher "
+        "once run on individual players instead of teams. Read the team table "
+        "above as a snapshot of who was on the roster in 2026, not a "
+        "permanent ranking of front offices."
     )
+
+    st.markdown("**Perceptual precision, by team and role**")
+    st.markdown(
+        "Fitted the same way as the league-wide estimate — never from success "
+        "rate. Every one of 28 of 30 teams reads fielding challenges (catcher/"
+        "pitcher) more precisely than batting challenges, matching the "
+        "league-wide pattern exactly. This one doesn't depend on the "
+        "reliability question below — it's a direct, team-by-team replication "
+        "of the role effect."
+    )
+    ts = team_sigma.pivot(index="team", columns="role", values="sigma_in").reset_index()
+    st.altair_chart(
+        alt.Chart(ts).mark_circle(size=70, color=COLOR_OPTIMAL, opacity=0.75).encode(
+            x=alt.X("batting:Q", title="Batting σ (inches)"),
+            y=alt.Y("fielding:Q", title="Fielding σ (inches)"),
+            tooltip=["team", alt.Tooltip("batting:Q", format=".2f"),
+                     alt.Tooltip("fielding:Q", format=".2f")],
+        ).properties(height=300) +
+        alt.Chart(pd.DataFrame({"x": [1, 4], "y": [1, 4]})).mark_line(
+            strokeDash=[4, 4], color="#94A3B8").encode(x="x", y="y"),
+        width='stretch')
+    st.caption(
+        "Points below the dashed line read fielding more precisely than batting "
+        "(28 of 30 teams). Whether teams with sharper fielding reads also win "
+        "more of their challenges is a weak, not-quite-significant relationship "
+        "(r = −0.35, p = 0.06) — suggestive, not confirmation. Full per-team "
+        "figures, bootstrap confidence intervals, and the underlying tests are "
+        "in scripts/team_skill_test.py and data/team_skill_test.parquet."
+    )
+
+    st.divider()
+    st.markdown("##### Is the cross-team spread in success itself a repeatable skill?")
 
     sh = split_half.merge(team_sig_test[["team", "z", "p_bonferroni"]], on="team")
     r_val = np.corrcoef(sh.h1_rate, sh.h2_rate)[0, 1]
@@ -508,34 +540,6 @@ with tab3:
         "merely average or below. A team doesn't need an exceptional catcher "
         "to lead the league on volume alone — and that's exactly the split "
         "the data shows."
-    )
-
-    st.markdown("**Perceptual precision, by team and role**")
-    st.markdown(
-        "Fitted the same way as the league-wide estimate — never from success "
-        "rate. Every one of 28 of 30 teams reads fielding challenges (catcher/"
-        "pitcher) more precisely than batting challenges, matching the "
-        "league-wide pattern. Whether the teams with sharper fielding reads "
-        "also win more of their challenges is a **weak, not-quite-significant** "
-        "relationship (r = −0.35, p = 0.06) — suggestive, not confirmation, "
-        "especially since the base question above is still open."
-    )
-    ts = team_sigma.pivot(index="team", columns="role", values="sigma_in").reset_index()
-    st.altair_chart(
-        alt.Chart(ts).mark_circle(size=70, color=COLOR_OPTIMAL, opacity=0.75).encode(
-            x=alt.X("batting:Q", title="Batting σ (inches)"),
-            y=alt.Y("fielding:Q", title="Fielding σ (inches)"),
-            tooltip=["team", alt.Tooltip("batting:Q", format=".2f"),
-                     alt.Tooltip("fielding:Q", format=".2f")],
-        ).properties(height=300) +
-        alt.Chart(pd.DataFrame({"x": [1, 4], "y": [1, 4]})).mark_line(
-            strokeDash=[4, 4], color="#94A3B8").encode(x="x", y="y"),
-        width='stretch')
-    st.caption(
-        "Points below the dashed line read fielding more precisely than batting "
-        "(28 of 30 teams). Full per-team figures, bootstrap confidence intervals, "
-        "and the underlying tests are in scripts/team_skill_test.py and "
-        "data/team_skill_test.parquet."
     )
 
 st.divider()
