@@ -61,6 +61,8 @@ team_sigma = load("team_sigma")
 team_sig_test = load("team_significance")
 player_skill_test = load("player_skill_test")
 catcher_check = load("catcher_check")
+catcher_population = load("catcher_population")
+catcher_summary = load("catcher_summary")
 sigma["Role"] = sigma.side.map(ROLE_LABELS)
 
 st.title("Who's leaving runs on the table?")
@@ -510,36 +512,151 @@ with tab3:
         "ambiguous despite the spread being real.*"
     )
 
-    top_catchers = catcher_check[catcher_check.top_team][
-        ["team", "name", "n", "rate", "pct_rank", "quality_ratio"]
+    st.markdown("**Do the top teams' own catchers show up individually?**")
+    n_pop = int(catcher_summary.population_n.iloc[0])
+    min_n_pop = int(catcher_summary.min_challenges.iloc[0])
+    sel_r = catcher_summary.selection_r.iloc[0]
+    sel_p = catcher_summary.selection_p.iloc[0]
+    qual_r = catcher_summary.quality_corr_r.iloc[0]
+    qual_p = catcher_summary.quality_corr_p.iloc[0]
+    qual_n = int(catcher_summary.quality_corr_n.iloc[0])
+    st.markdown(
+        f"**Population and ranking, stated plainly:** every catcher who "
+        f"logged at least {min_n_pop} challenges of his own in 2026 — "
+        f"{n_pop} of them leaguewide — ranked by *raw* individual success "
+        f"rate, nothing else. That raw ranking has an obvious failure mode: "
+        f"a catcher who only challenges pitches that missed by a mile would "
+        f"rank high without reading close calls any better than average. We "
+        f"checked for it directly — correlating each catcher's mean "
+        f"challenge distance from the zone boundary against his success "
+        f"rate — and found a weak, **not statistically significant** "
+        f"relationship (r = {sel_r:.2f}, p = {sel_p:.2f}). So there's no "
+        f"strong evidence the ranking is just 'who picks easier misses,' "
+        f"but with p this close to conventional significance it's a real "
+        f"caveat, not a cleared one."
+    )
+
+    pop_domain = [max(0.0, catcher_population.rate.min() - 0.03),
+                  min(1.0, catcher_population.rate.max() + 0.03)]
+    hist = alt.Chart(catcher_population).mark_bar(color="#CBD5E1").encode(
+        x=alt.X("rate:Q", bin=alt.Bin(maxbins=22),
+                title="Individual challenge success rate",
+                axis=alt.Axis(format="%"), scale=alt.Scale(domain=pop_domain)),
+        y=alt.Y("count():Q", title=f"Catchers (of {n_pop})"),
+    )
+    top5_catchers = catcher_check[catcher_check.top_team].dropna(subset=["rate"])
+    marks = alt.Chart(top5_catchers).mark_rule(size=3, opacity=0.9).encode(
+        x=alt.X("rate:Q", scale=alt.Scale(domain=pop_domain)),
+        color=alt.Color("name:N", title="Primary catcher, top-5 team",
+                        scale=alt.Scale(scheme="tableau10")),
+        tooltip=["name", "team", alt.Tooltip("rate:Q", format=".1%"),
+                 alt.Tooltip("n:Q", title="Challenges")],
+    )
+    st.altair_chart((hist + marks).properties(height=280), width='stretch')
+    st.caption(
+        "Where the top 5 teams' primary catchers fall in the full leaguewide "
+        "distribution of individual catcher accuracy. Hover a line for the "
+        "name, team, exact rate, and sample size."
+    )
+
+    top_catchers = top5_catchers[
+        ["team", "name", "n", "rate", "ci_lo", "ci_hi", "pct_rank", "quality_ratio"]
     ].copy()
-    top_catchers["rate"] *= 100
-    top_catchers["pct_rank"] *= 100
+    for c in ("rate", "ci_lo", "ci_hi", "pct_rank"):
+        top_catchers[c] *= 100
     top_catchers = top_catchers.rename(columns={
         "team": "Team", "name": "Primary catcher", "n": "Challenges",
-        "rate": "Own success rate", "pct_rank": "League percentile (catchers)",
-        "quality_ratio": "Team quality ratio",
+        "rate": "Own success rate", "ci_lo": "95% CI low", "ci_hi": "95% CI high",
+        "pct_rank": "League percentile (catchers)", "quality_ratio": "Team quality ratio",
     })
-    st.markdown("**Do the top teams' own catchers show up individually?**")
     st.dataframe(
         top_catchers, hide_index=True, width='stretch',
         column_config={
             "Own success rate": st.column_config.NumberColumn(format="%.1f%%"),
+            "95% CI low": st.column_config.NumberColumn(format="%.1f%%"),
+            "95% CI high": st.column_config.NumberColumn(format="%.1f%%"),
             "League percentile (catchers)": st.column_config.NumberColumn(format="%.0f%%"),
             "Team quality ratio": st.column_config.NumberColumn(format="%.2f"),
         },
     )
+    def _pct_equiv(rate):
+        return (catcher_population.rate < rate).mean() * 100
+
+    _stephenson = top5_catchers[top5_catchers.name == "Tyler Stephenson"].iloc[0]
+    _goodman = top5_catchers[top5_catchers.name == "Hunter Goodman"].iloc[0]
+    _caratini = top5_catchers[top5_catchers.name == "Victor Caratini"].iloc[0]
+    _langeliers = top5_catchers[top5_catchers.name == "Shea Langeliers"].iloc[0]
     st.markdown(
-        "The top 5 teams by total runs gained, and the catcher who caught the "
-        "most innings for each. Cincinnati and Colorado — both quality-driven "
-        "leads (success rate above league average, not just more attempts) — "
-        "have primary catchers who individually rank in the 80th–85th "
-        "percentile of all catcher-challengers leaguewide. Minnesota and "
-        "Chicago's leads are volume-driven instead (more attempts at "
-        "average-or-below success), and their primary catchers grade out as "
-        "merely average or below. A team doesn't need an exceptional catcher "
-        "to lead the league on volume alone — and that's exactly the split "
-        "the data shows."
+        f"**How much to trust one catcher's rank:** a primary catcher gets "
+        f"roughly 40–160 challenges of his own in a season — enough to see a "
+        f"real signal, not enough to pin down a precise number. Converting "
+        f"each catcher's 95% CI back into where it would land in the league "
+        f"distribution: Shea Langeliers's CI alone spans the "
+        f"{_pct_equiv(_langeliers.ci_lo):.0f}th to "
+        f"{_pct_equiv(_langeliers.ci_hi):.0f}th percentile, and Victor "
+        f"Caratini's the {_pct_equiv(_caratini.ci_lo):.0f}th to "
+        f"{_pct_equiv(_caratini.ci_hi):.0f}th — both wide enough to include "
+        f"a below-average catcher. Tyler Stephenson "
+        f"({_pct_equiv(_stephenson.ci_lo):.0f}th–{_pct_equiv(_stephenson.ci_hi):.0f}th) "
+        f"and Hunter Goodman "
+        f"({_pct_equiv(_goodman.ci_lo):.0f}th–{_pct_equiv(_goodman.ci_hi):.0f}th) "
+        f"sit on firmer ground, but even Goodman's low end isn't clearly "
+        f"above average. This matches the player-level split-half "
+        f"reliability above (r ≈ 0.28–0.37): individual accuracy is real, "
+        f"repeatable signal, but a noisy one — this season's exact ranking "
+        f"of any one catcher would likely move some by next season."
+    )
+
+    st.markdown("**Does a team's quality edge actually line up with its own catcher's accuracy?**")
+    cc_all = catcher_check.dropna(subset=["rate", "quality_ratio"])
+    base_scatter = alt.Chart(cc_all).mark_circle(size=80, opacity=0.55, color="#94A3B8").encode(
+        x=alt.X("quality_ratio:Q", title="Team quality ratio (success × leverage vs. league, "
+                "attempts held fixed)"),
+        y=alt.Y("rate:Q", title="Primary catcher's own success rate", axis=alt.Axis(format="%")),
+        tooltip=["team", "name", alt.Tooltip("quality_ratio:Q", format=".2f"),
+                 alt.Tooltip("rate:Q", format=".1%")],
+    )
+    trend = base_scatter.transform_regression("quality_ratio", "rate").mark_line(
+        color="#334155", strokeDash=[5, 3])
+    top5_pts = alt.Chart(cc_all[cc_all.top_team]).mark_circle(
+        size=160, color=COLOR_OPTIMAL).encode(
+        x="quality_ratio:Q", y="rate:Q",
+        tooltip=["team", "name", alt.Tooltip("quality_ratio:Q", format=".2f"),
+                 alt.Tooltip("rate:Q", format=".1%")],
+    )
+    top5_labels = alt.Chart(cc_all[cc_all.top_team]).mark_text(
+        dx=10, dy=-6, align="left", color=COLOR_OPTIMAL, fontWeight="bold").encode(
+        x="quality_ratio:Q", y="rate:Q", text="team")
+    st.altair_chart(
+        (base_scatter + trend + top5_pts + top5_labels).properties(height=340),
+        width='stretch')
+    st.markdown(
+        f"Every dot is one of the 30 primary catchers, not just the top 5: x is "
+        f"how much of his team's edge is *quality* (success and leverage, with "
+        f"attempts held fixed) rather than volume; y is that same catcher's own "
+        f"individual challenge success rate. They're correlated leaguewide "
+        f"(r = {qual_r:.2f}, p = {qual_p:.3f}, n = {qual_n} teams) — not just a "
+        f"pattern eyeballed in 5 points. **Cincinnati (CIN) and Colorado (COL)** "
+        f"got to a similar-looking runs-gained rank as **Minnesota (MIN) and "
+        f"Chicago (CWS)**, but by different routes: Tyler Stephenson and Hunter "
+        f"Goodman are individually sharp challengers driving a real quality "
+        f"edge, while Victor Caratini and Drew Romo are average-to-below and "
+        f"their teams' rank instead reflects challenging *more often* — which "
+        f"matters, because a volume edge is a lineup-construction choice a new "
+        f"front office could keep next season, while a quality edge tied to one "
+        f"catcher walks out the door with him in a trade."
+    )
+
+    st.markdown(
+        "##### What this section means\n"
+        "Challenge accuracy looks like a skill that belongs to **players**, "
+        "not front offices — and the players who most clearly have it are "
+        "**catchers**. That reframes the question a team should be asking. "
+        "It's not just *when* to challenge (the optimal-policy question this "
+        "whole page is about) but *who* calls for one: a team with a sharp "
+        "catcher back there has real signal worth trusting on close calls; a "
+        "team with an average one is better off leaning on the same policy "
+        "logic as everyone else."
     )
 
 st.divider()

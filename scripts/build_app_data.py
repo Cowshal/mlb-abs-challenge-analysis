@@ -105,7 +105,8 @@ def main():
     # ---- 1b. team-skill follow-ups: player-level split-half + catcher check ----
     # (built by scripts/team_decomposition.py -> team_skill_test.py -> player_skill_test.py,
     # run in that order since each reads the previous one's output)
-    for name in ("team_decomposition", "player_skill_test", "catcher_check"):
+    for name in ("team_decomposition", "player_skill_test", "catcher_check",
+                 "catcher_population", "catcher_summary"):
         path = Path(f"data/{name}.parquet")
         if path.exists():
             pd.read_parquet(path).to_parquet(OUT / f"{name}.parquet", index=False)
