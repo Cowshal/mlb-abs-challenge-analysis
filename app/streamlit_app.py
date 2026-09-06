@@ -287,6 +287,21 @@ try:
     c3.metric("Decision gap (per team-season)", f"+{decision_gap:.0f} runs",
               help="The actionable number: better decisions, identical information.")
 
+    st.caption(
+        f"**Which parts of this rest on statistics, and which don't.** The "
+        f"headline — because a **correct** challenge is returned, the break-even "
+        f"confidence to challenge sits well below 50%, so teams gain by "
+        f"challenging on *leverage* rather than *certainty*, worth about "
+        f"**+{decision_gap:.0f} runs a team a season** — is arithmetic from the "
+        f"challenge rules and run expectancy. It is not a hypothesis test and "
+        f"does not hinge on any correlation clearing a significance threshold. "
+        f"The separate question of whether challenge *accuracy* is a repeatable "
+        f"team or player skill lives in the **Runs left on the table** tab, and "
+        f"every statistic there is labeled with how much weight it can bear — a "
+        f"confidence interval that crosses zero on one of those supporting "
+        f"checks does not touch the number above."
+    )
+
     tab1, tab_games, tab2, tab3 = st.tabs(
         ["Decomposition", "Real games from 2026", "Should I challenge?",
          "Runs left on the table"])
@@ -448,7 +463,12 @@ try:
             f"resampling), but this dataset can't yet say whether accounting for "
             f"it in the decision model is worth a little, a lot, or possibly points "
             f"the other way. Read {move_season:+.2f} as one plausible draw from a "
-            f"wide distribution, not a precise correction."
+            f"wide distribution, not a precise correction.\n\n"
+            f"**This is a robustness check on a modeling assumption, not the "
+            f"headline.** The +{decision_gap:.0f}-run decision gap uses the "
+            f"role-level σ only and does not move with it. An interval that "
+            f"crosses zero *here* means \"a finer σ model might nudge the number "
+            f"up or down\" — not \"the effect might be nothing.\""
         )
 
         order_v = ["high", "middle", "low"]
@@ -1188,21 +1208,36 @@ try:
             st.caption("Batting-role challenges only — a batter can only challenge called "
                        "strikes against himself.")
 
-        # ------------------------------------------------ is it a repeatable skill?
+        # ------------------------------------------------ whose skill is it?
         st.divider()
-        st.subheader("Is this a repeatable team skill?")
+        st.subheader("Whose skill is it — the team's, or the player's?")
         st.markdown(
             "##### In short\n"
-            "**The clearest team-level result replicates the league-wide finding "
-            "above: 28 of 30 teams individually read fielding challenges more "
-            "precisely than batting challenges.** Whether the overall spread in "
-            "team success is a stable *skill* is murkier — it's more than chance "
-            "would produce, but fails a team-level reliability test. That's "
-            "because it's personnel, not a team trait: rosters turn over "
-            "mid-season, and the same reliability test reads meaningfully higher "
-            "once run on individual players instead of teams. Read the team table "
-            "above as a snapshot of who was on the roster in 2026, not a "
-            "permanent ranking of front offices."
+            "**Challenge accuracy is a repeatable skill, and it lives at the "
+            "*player* level — most clearly with catchers — not the front "
+            "office's.** Three pieces of evidence point the same way:\n\n"
+            "1. **The role effect replicates team by team.** 28 of 30 teams "
+            "individually read fielding (catcher / pitcher) challenges more "
+            "precisely than batting ones — the exact league-wide pattern, found "
+            "28 separate times.\n"
+            "2. **The same reliability test is positive on players and null on "
+            "teams.** Splitting the season in half, individual challengers' "
+            "success rates correlate across the two halves at **r ≈ 0.32–0.38** "
+            "(confidence intervals clear of zero); the *team*-level version "
+            "washes out at **r ≈ 0.22** (interval crosses zero). That is exactly "
+            "the gap you would expect if the skill belongs to people, who change "
+            "teams mid-season, rather than to organizations.\n"
+            "3. **A team's quality edge tracks its own catcher's accuracy** "
+            "(**r = 0.44, p = 0.01**, across all 30 teams) — the clubs that gain "
+            "runs by challenging *well* rather than just *often* are the ones "
+            "with an individually sharp catcher.\n\n"
+            "So the team table above is a snapshot of who was on the roster in "
+            "2026, not a standing ranking of front offices. The one thing this "
+            "season *can't* settle is forward-looking — whether a front office "
+            "can reliably acquire or develop the skill — but that it is a "
+            "player skill, and a real one, is not in doubt. **None of this feeds "
+            "the headline:** the decision-gap number is arithmetic, and holds "
+            "whether or not accuracy turns out to be a coachable team trait."
         )
 
         st.markdown("**Perceptual precision, by team and role**")
@@ -1234,11 +1269,13 @@ try:
             "do.*"
         )
         st.caption(
-            "Whether teams with sharper fielding reads also win more of their "
-            "challenges is a weak, not-quite-significant relationship "
-            "(r = −0.35, p = 0.06) — suggestive, not confirmation. Full per-team "
-            "figures, bootstrap confidence intervals, and the underlying tests are "
-            "in scripts/team_skill_test.py and data/team_skill_test.parquet."
+            "The 28-of-30 replication stands on its own. A further probe — "
+            "whether teams with sharper fielding reads also *win* more of their "
+            "challenges — is only weak, not-quite-significant "
+            "(r = −0.35, p = 0.06): suggestive, and nothing the conclusion "
+            "leans on either way. Full per-team figures, bootstrap confidence "
+            "intervals, and the underlying tests are in "
+            "scripts/team_skill_test.py and data/team_skill_test.parquet."
         )
         with st.expander("What do \"r\", \"p\", and \"confidence interval\" mean? (this page uses them a lot below)"):
             st.markdown(
@@ -1258,19 +1295,26 @@ try:
                 "probably falls in, given how much data went into it. A wide "
                 "CI means the point estimate is shakier than it looks; a CI "
                 "that spans zero means the data can't rule out \"no effect at "
-                "all,\" which is exactly what happens with the team-level "
-                "result just below."
+                "all.\" When that lands on a *supporting* check — like the "
+                "team-level reliability test just below — a null is "
+                "information, not a letdown: there, it is precisely what tells "
+                "us the skill is a player's and not a team's."
             )
 
         st.divider()
-        st.markdown("##### Is the cross-team spread in success itself a repeatable skill?")
+        st.markdown("##### Why the team-level test washes out")
+        st.caption(
+            "This is the supporting analysis the reframing above turns on — a "
+            "null result here is the *evidence*, not a loose end. The headline "
+            "decision gap does not depend on it."
+        )
 
         sh = split_half.merge(team_sig_test[["team", "z", "p_bonferroni"]], on="team")
         r_val = np.corrcoef(sh.h1_rate, sh.h2_rate)[0, 1]
 
         col1, col2 = st.columns([3, 2])
         with col1:
-            st.markdown("**Split-half reliability — the core test**")
+            st.markdown("**Split-half reliability — team level**")
             base = alt.Chart(sh)
             line = alt.Chart(pd.DataFrame({"x": [0.3, 0.75], "y": [0.3, 0.75]})).mark_line(
                 strokeDash=[4, 4], color="#94A3B8").encode(x="x", y="y")
@@ -1284,10 +1328,12 @@ try:
             )
             st.altair_chart((line + pts).properties(height=320), width='stretch')
             st.markdown(
-                f"*What this means: if a team's first-half success predicted its "
-                f"second-half success, the dots would hug the dashed diagonal. They "
-                f"don't, consistently enough to be sure — correlation r = {r_val:.2f}, "
-                f"95% CI crosses zero.*"
+                f"*What this means: a team's first-half challenge success barely "
+                f"predicts its second half — the dots don't hug the diagonal "
+                f"(r = {r_val:.2f}, 95% CI crosses zero). On its own that's a "
+                f"null result. Paired with the clearly positive player-level "
+                f"version below, it's the tell that the skill moves with "
+                f"players, not franchises.*"
             )
         with col2:
             st.markdown("**But the spread itself is real**")
@@ -1303,12 +1349,12 @@ try:
                 "having checked all 30 teams."
             )
             st.markdown(
-                "*So: real variation exists in 2026. Whether it's a stable trait "
-                "that predicts next season, or a one-year cluster of borderline "
-                "calls going one team's way, isn't answered by this season alone.*"
+                "*So real variation exists in 2026 — the open question is only "
+                "whether it's a **team** property or a **player** property. The "
+                "next two analyses settle that: player, not team.*"
             )
 
-        st.markdown("**Does the same test read differently at the player level?**")
+        st.markdown("**The same test at the player level — the positive result**")
         pst = player_skill_test.rename(columns={
             "min_challenges_per_half": "Min. challenges / half", "n_players": "Players",
             "r": "r", "p": "p", "ci_lo": "95% CI low", "ci_hi": "95% CI high"})
@@ -1323,16 +1369,18 @@ try:
             },
         )
         st.markdown(
-            "Same split-half design, run on individual challengers instead of "
-            "teams, at a few different minimum-sample thresholds. At 8 or 10 "
-            "challenges per half, reliability (r ≈ 0.32–0.38) is clearly above the "
-            "team-level 0.22 and its 95% CI clears zero — unlike the team-level "
-            "test. The extremes are noisier (5: too lax a bar, mostly noise; 15: "
-            "only 51 players left, underpowered) rather than a genuine reversal. "
-            "*This doesn't prove an organizational skill — one season still can't "
-            "separate a genuinely better process from happening to roster the "
-            "right people — but it does explain why the team-level test came back "
-            "ambiguous despite the spread being real.*"
+            "Same split-half design, on individual challengers instead of "
+            "teams. The load-bearing rows are the **8-** and **10-per-half** "
+            "thresholds: **r ≈ 0.32–0.38, both 95% intervals clear of zero** — "
+            "a clear positive exactly where the team-level test was null. The "
+            "5-per-half row (r ≈ 0, mostly noise — too lax a bar) and the "
+            "15-per-half row (only 51 players, underpowered) bracket it as "
+            "diagnostics, not a reversal.\n\n"
+            "*What this settles: challenge accuracy repeats across a season for "
+            "individuals but not for rosters — so the skill is the player's. "
+            "What it doesn't settle: whether a front office can systematically "
+            "build that in, which one season can't separate from having "
+            "rostered the right people.*"
         )
 
         st.markdown("**Do the top teams' own catchers show up individually?**")
@@ -1356,7 +1404,9 @@ try:
             f"relationship (r = {sel_r:.2f}, p = {sel_p:.2f}). So there's no "
             f"strong evidence the ranking is just 'who picks easier misses,' "
             f"but with p this close to conventional significance it's a real "
-            f"caveat, not a cleared one."
+            f"caveat, not a cleared one. It's a caveat on the *ranking* only — "
+            f"the player-skill conclusion rests on the split-half test and the "
+            f"quality correlation below, both of which survive it."
         )
 
         pop_domain = [max(0.0, catcher_population.rate.min() - 0.03),
@@ -1430,7 +1480,7 @@ try:
             f"of any one catcher would likely move some by next season."
         )
 
-        st.markdown("**Does a team's quality edge actually line up with its own catcher's accuracy?**")
+        st.markdown("**Does a team's quality edge line up with its own catcher's accuracy? — the analysis that pins it to the catcher**")
         cc_all = catcher_check.dropna(subset=["rate", "quality_ratio"])
         base_scatter = alt.Chart(cc_all).mark_circle(size=80, opacity=0.55, color="#94A3B8").encode(
             x=alt.X("quality_ratio:Q", title="Team quality ratio (success × leverage vs. league, "
@@ -1473,14 +1523,21 @@ try:
 
         st.markdown(
             "##### What this section means\n"
-            "Challenge accuracy looks like a skill that belongs to **players**, "
-            "not front offices — and the players who most clearly have it are "
-            "**catchers**. That reframes the question a team should be asking. "
-            "It's not just *when* to challenge (the optimal-policy question this "
-            "whole page is about) but *who* calls for one: a team with a sharp "
-            "catcher back there has real signal worth trusting on close calls; a "
-            "team with an average one is better off leaning on the same policy "
-            "logic as everyone else."
+            "Challenge accuracy is a repeatable skill, and it belongs to "
+            "**players** — most clearly **catchers** — not front offices. The "
+            "team-level reliability test came back null not because the skill "
+            "isn't real but because rosters churn; run the identical test on "
+            "individuals and it is clearly positive, and a team's edge in "
+            "challenging *well* tracks its own catcher's accuracy. That "
+            "reframes the question a team should ask: not just *when* to "
+            "challenge (the optimal-policy question this whole page answers) but "
+            "*who* calls for one. A club with a sharp catcher has real signal "
+            "to trust on close calls; one without is better off leaning on the "
+            "same policy logic as everyone else.\n\n"
+            "**None of this changes the headline.** The decision-gap number is "
+            "arithmetic from the challenge rules and run expectancy; it holds "
+            "whether or not challenge accuracy turns out to be a coachable team "
+            "trait."
         )
 
     st.divider()

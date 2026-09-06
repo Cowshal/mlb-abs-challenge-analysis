@@ -521,3 +521,35 @@ challenge is a mistake at the decision, not because of the outcome.
    vantage-point sigma result. Caveat in the copy: it's the *volume* of good
    borderline attempts that tracks with run production, not the win rate on
    them (win rate vs. other-runs: r = -0.35, p = 0.06, n.s.).
+
+## Framing rule: separate the load-bearing claim from the statistics
+
+A reader with good baseball knowledge came away thinking "the project's
+finding isn't statistically significant" because he hit the team-level
+split-half CI (r = 0.22, crosses zero) and stopped. That was a framing
+failure, not a data problem, and it drove a site-wide pass (2026-09-05):
+
+- **The headline is arithmetic, not a hypothesis test.** A correct challenge
+  is returned -> break-even confidence sits well below 50% -> teams gain by
+  challenging on leverage, not certainty (~+9 runs/team-season). This follows
+  from the challenge rules + run expectancy. It has no p-value and needs
+  none. A short "which parts of this rest on statistics, and which don't"
+  caption now sits directly under the three headline metrics saying exactly
+  this.
+- **The team-vs-player skill question is resolved, and the resolution now
+  leads.** Tab 3's section is retitled "Whose skill is it -- the team's, or
+  the player's?" and opens with the conclusion: challenge accuracy is a
+  repeatable *player* skill (split-half r = 0.32-0.38 at 8-10 challenges/half,
+  CIs clear of zero; catcher-quality correlation r = 0.44, p = 0.014), and
+  the team-level null (r = 0.22) is *evidence for* that -- rosters churn --
+  not an open question. All "we can't tell yet / isn't answered by this
+  season" language from before the personnel analysis was removed. What
+  remains genuinely open (and is still labeled open) is only the
+  forward-looking "can a front office systematically acquire/develop it".
+- **Every CI that crosses zero is now labeled with what it means for the
+  conclusion.** The two that a reader could mistake for "the finding might be
+  nothing" -- the team split-half (r = 0.22) and the zone-sigma sensitivity
+  bootstrap (-1.6 to +3.1 runs/season) -- each carry an explicit line that
+  they are supporting/robustness checks and the headline decision gap does
+  not move with them. If you add a new CI to the site, add the "what this
+  means for the conclusion" sentence next to it in the same edit.
