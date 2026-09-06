@@ -75,6 +75,13 @@ zone_sigma_bootstrap = load("zone_sigma_sensitivity_bootstrap")
 option_values = load("option_values")
 re_2026 = load("re_2026")
 posterior_lookup = load("posterior_lookup")
+cases = load("case_studies")
+miss_by_count = load("endorsed_miss_by_count")
+miss_summary = load("endorsed_miss_summary").iloc[0]
+miss_hist = load("endorsed_miss_evnet_hist")
+coinflip_team = load("coinflip_by_team")
+coinflip_role = load("coinflip_by_role")
+coinflip_summary = load("coinflip_summary").iloc[0]
 sigma["Role"] = sigma.side.map(ROLE_LABELS)
 
 
@@ -203,6 +210,51 @@ def p_wrong_given_click(x_ft, z_ft, role, height_ft):
     o_grid, p_grid = posterior_grids()[role]
     return float(np.interp(d, o_grid, p_grid))
 
+
+# ---------------------------------------------------------------- case studies
+def _ord(n):
+    return {1: "1st", 2: "2nd", 3: "3rd"}.get(int(n), f"{int(n)}th")
+
+
+def case_zone_chart(row):
+    """The same zone diagram as the 'Should I challenge?' tool -- rulebook box,
+    dashed ball-radius ABS boundary, to-scale home plate -- drawn for this
+    batter's height, with a marker where the pitch actually crossed the middle
+    of the plate."""
+    zt, zb = float(row.zone_top_in), float(row.zone_bot_in)
+    margin = 2.5
+    x_lo = -(ZONE_WIDTH_IN / 2 + BALL_RADIUS_IN + margin)
+    x_hi = -x_lo
+    z_hi = zt + BALL_RADIUS_IN + margin
+    plate_top_z = zb - BALL_RADIUS_IN - PLATE_GAP_IN
+    z_lo = plate_top_z - PLATE_DEPTH_IN - 1.0
+    xs = alt.Scale(domain=[x_lo, x_hi])
+    zs = alt.Scale(domain=[z_lo, z_hi])
+    rule_zone = alt.Chart(pd.DataFrame([{
+        "x0": -ZONE_WIDTH_IN / 2, "x1": ZONE_WIDTH_IN / 2, "z0": zb, "z1": zt}])
+    ).mark_rect(fill="#BFDBFE", fillOpacity=0.35, stroke="#0F172A", strokeWidth=2
+    ).encode(x=alt.X("x0:Q", scale=xs,
+                     title="Inches from the plate's center"), x2="x1:Q",
+             y=alt.Y("z1:Q", scale=zs, title="Inches off the ground"), y2="z0:Q")
+    abs_boundary = alt.Chart(pd.DataFrame([{
+        "x0": -ZONE_WIDTH_IN / 2 - BALL_RADIUS_IN,
+        "x1": ZONE_WIDTH_IN / 2 + BALL_RADIUS_IN,
+        "z0": zb - BALL_RADIUS_IN, "z1": zt + BALL_RADIUS_IN}])
+    ).mark_rect(fill=None, stroke="#0F172A", strokeWidth=1.4, strokeDash=[5, 3]
+    ).encode(x=alt.X("x0:Q", scale=xs), x2="x1:Q",
+             y=alt.Y("z1:Q", scale=zs), y2="z0:Q")
+    plate = alt.Chart(home_plate_outline(plate_top_z)).mark_line(
+        color="#0F172A", strokeWidth=1.5, fill="#E2E8F0", fillOpacity=0.9
+    ).encode(x=alt.X("x:Q", scale=xs), y=alt.Y("z:Q", scale=zs), order="order:O")
+    pitch = alt.Chart(pd.DataFrame([{
+        "x": float(row.pitch_x_in), "z": float(row.pitch_z_in)}])
+    ).mark_point(size=340, shape="diamond", filled=True, color=COLOR_CEILING,
+                 stroke="#0F172A", strokeWidth=1.5).encode(
+        x=alt.X("x:Q", scale=xs), y=alt.Y("z:Q", scale=zs))
+    w = 270
+    h = min(int(w * (z_hi - z_lo) / (x_hi - x_lo)), 380)
+    return (rule_zone + abs_boundary + plate + pitch).properties(width=w, height=h)
+
 try:
     st.title("Who's leaving runs on the table?")
     st.caption("Optimal ABS challenge policy vs. observed behaviour, 2026 MLB season "
@@ -235,8 +287,9 @@ try:
     c3.metric("Decision gap (per team-season)", f"+{decision_gap:.0f} runs",
               help="The actionable number: better decisions, identical information.")
 
-    tab1, tab2, tab3 = st.tabs(
-        ["Decomposition", "Should I challenge?", "Runs left on the table"])
+    tab1, tab_games, tab2, tab3 = st.tabs(
+        ["Decomposition", "Real games from 2026", "Should I challenge?",
+         "Runs left on the table"])
 
     # ---------------------------------------------------------------- tab 1
     with tab1:
@@ -476,6 +529,342 @@ try:
         )
         st.caption("The optimal policy wins a *smaller* share of its challenges but each "
                    "one is worth more. It is not 'challenge more' — it is 'challenge different'.")
+
+    # ---------------------------------------------------------------- real games
+    with tab_games:
+        st.markdown(
+            "##### In short\n"
+            "The rest of this site is averages. This tab is the specific "
+            "at-bats behind them — real 2026 games, with names, dates, the "
+            "situation, and what the model saw. Every case is a single called "
+            "ball or strike, scored two ways: **how likely the call was wrong**, "
+            "and **how many runs were riding on it**."
+        )
+        st.divider()
+
+        st.warning(
+            "**How to read these — two things that are easy to get wrong.**\n\n"
+            "**1. A missed challenge is a mistake at the moment of the "
+            "decision, not because of what happened afterward.** Each case is "
+            "framed on the *expected* runs at stake and the break-even "
+            "confidence needed to challenge — both knowable before the next "
+            "pitch. What actually happened next is shown too, but only as "
+            "colour: a call that was 90% likely wrong in a spot with a 4% "
+            "break-even was worth challenging *whether or not* the batter went "
+            "on to score. Don't let a quiet outcome argue you out of the "
+            "decision, or a dramatic one into it.\n\n"
+            "**2. These are the tail, and they're labelled as such.** Each "
+            "list states how many comparable situations exist in 2026 and "
+            "where the shown case ranks. The examples are extreme *by "
+            "construction* — that is the point of showing them — not a claim "
+            "that a typical missed challenge looks like this."
+        )
+        st.caption(
+            "\"P(call was wrong)\" is the model's geometry read: where the "
+            "pitch crossed the middle of the plate versus this batter's ABS "
+            "zone, with a half-inch of tracking blur. \"Break-even\" is "
+            "C / (ΔRE + C) — the confidence at which challenging is worth the "
+            "risk of losing a challenge token — the same formula as the "
+            "\"Should I challenge?\" tab."
+        )
+
+        def render_case(row, kind):
+            half_word = "Top" if row.half == "Top" else "Bottom"
+            with st.container(border=True):
+                st.markdown(
+                    f"#### #{int(row['rank'])} — {row.game_date}, "
+                    f"{row.away_team} @ {row.home_team}")
+                L, R = st.columns([3, 2])
+                with L:
+                    st.markdown(
+                        f"- **{half_word} {_ord(row.inning)}**, "
+                        f"{row.count_label} count, {row.base_out_label}\n"
+                        f"- **{row.batter_name}** batting, "
+                        f"**{row.pitcher_name}** pitching\n"
+                        f"- Call on the field: **{row.call_was}** · the "
+                        f"**{row.challenging_team}** {row.challenger_desc} "
+                        f"could have challenged "
+                        f"(**{int(row.challenges_remaining)}** challenge"
+                        f"{'s' if row.challenges_remaining != 1 else ''} left)"
+                    )
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("Model: P(call was wrong)", f"{row.p_wrong:.0%}")
+                    m2.metric("Runs at stake (ΔRE)", f"{row.dre:.2f}")
+                    m3.metric("Break-even to challenge", f"{row.p_star:.0%}")
+
+                    if kind == "endorsed_win":
+                        st.markdown(
+                            f"✅ **Challenged — and won.** The read was "
+                            f"genuinely close (only **{row.p_wrong:.0%}** "
+                            f"likely wrong), but the break-even here was just "
+                            f"**{row.p_star:.0%}**, so the optimal policy says "
+                            f"fire. Expected runs secured: **{row.ev_net:.2f}**."
+                        )
+                    elif kind == "burn":
+                        st.markdown(
+                            f"🔴 **Nothing left to challenge with.** Expected "
+                            f"runs forfeited on this call: **{row.ev_net:.2f}**, "
+                            f"against a break-even of only **{row.p_star:.0%}**."
+                        )
+                        st.markdown(
+                            f"**What the {row.challenging_team} spent their two "
+                            f"challenges on instead:**\n\n{row.burn_detail}")
+                        st.caption(
+                            f"Leverage gap — this call versus the average of "
+                            f"the two they burned: **{row.leverage_gap:.2f} "
+                            f"runs**.")
+                    else:
+                        st.markdown(
+                            f"🔴 **No challenge was made.** Expected runs "
+                            f"forfeited: **{row.ev_net:.2f}** — the model's "
+                            f"read (**{row.p_wrong:.0%}** wrong) cleared the "
+                            f"**{row.p_star:.0%}** break-even with room to "
+                            f"spare."
+                        )
+
+                    st.markdown(
+                        f"*What happened next — colour only, it does not change "
+                        f"whether the decision was right: {row.narrative}*")
+                with R:
+                    st.altair_chart(case_zone_chart(row), width="content",
+                                    key=f"czone_{kind}_{int(row['rank'])}")
+                    side_word = ("winning" if kind == "endorsed_win"
+                                 else "wrong")
+                    st.caption(
+                        f"Where the pitch crossed the middle of the plate, on "
+                        f"{row.batter_name}'s ABS zone. Solid box: the rulebook "
+                        f"zone. Dashed box: the real ABS boundary, one "
+                        f"ball-radius further out. The pitch was **"
+                        f"{abs(row.miss_in):.1f} in** onto the {side_word} side "
+                        f"of that boundary.")
+
+        g1, g2, g3 = st.tabs([
+            "① Biggest missed opportunities",
+            "② Costly early burns",
+            "③ Model-endorsed successes"])
+
+        with g1:
+            st.markdown(
+                "Called pitches where P(wrong) was high, the runs at stake "
+                "were large, and the side that could have challenged still had "
+                "a challenge in hand — and didn't use it. Ranked by **expected "
+                "runs forfeited** (P(wrong) × ΔRE, net of the cost of spending "
+                "a challenge token)."
+            )
+            sub = cases[cases.category == "missed"].sort_values("rank")
+            ms = miss_summary
+
+            st.markdown("##### How big are these 16,302, really?")
+            st.markdown(
+                f"That works out to **{ms.per_game:.1f} model-endorsed "
+                f"unchallenged pitches per game** — a number that only means "
+                f"something once you see the sizes. Half forfeit under "
+                f"**{ms.ev_net_median:.2f} runs**; nine in ten under "
+                f"**{ms.ev_net_p90:.2f}**. Broken out by expected runs "
+                f"forfeited:\n\n"
+                f"- **{ms.frac_hair:.0%}** barely clear the bar — under 0.05 runs\n"
+                f"- **{ms.frac_modest:.0%}** are modest — 0.05 to 0.20 runs\n"
+                f"- **{ms.frac_comfortable:.0%}** are comfortable — 0.20 to "
+                f"0.50 runs (**{int(ms.n_comfortable_plus):,}** pitches at "
+                f"0.20+, about **{ms.n_comfortable_plus_per_game:.0f} a game**)\n"
+                f"- **{ms.frac_large:.1%}** are large — half a run or more "
+                f"(**{int(ms.n_large)}** all season, one every "
+                f"~{ms.games_per_large:.0f} games)\n\n"
+                f"The honest version: **most missed opportunities are small "
+                f"change.** The part worth acting on is the ~"
+                f"{ms.n_comfortable_plus_per_game:.0f} a game worth at least a "
+                f"fifth of a run, and the handful worth much more."
+            )
+            hh = miss_hist.copy()
+            hh["bucket"] = [f"{lo:g}–{hi:g}" if hi < 3 else f"{lo:g}+"
+                            for lo, hi in zip(hh.lo, hh.hi)]
+            st.altair_chart(
+                alt.Chart(hh).mark_bar(color=COLOR_OPTIMAL).encode(
+                    x=alt.X("bucket:N", sort=list(hh.bucket),
+                            title="Expected runs forfeited on the missed call"),
+                    y=alt.Y("n:Q", title="Missed opportunities"),
+                    tooltip=["bucket", "n"],
+                ).properties(height=200), width='stretch')
+            st.caption(
+                f"\"Small\" here means low *stakes*, not a *close decision*. "
+                f"The median missed opportunity still clears its break-even by "
+                f"**{ms.conf_margin_median * 100:.0f} points of confidence** — "
+                f"the model is quite sure the call was wrong; there just isn't "
+                f"much riding on most of them."
+            )
+
+            st.markdown("##### The one situation to watch: the borderline full count")
+            st.markdown(
+                f"Across *all* {int(ms.n):,} endorsed misses, 3-2 counts are "
+                f"just **{ms.full_count_share_all:.0%}** — most are low-stakes "
+                f"takes early in the count. Among the ones that actually cost "
+                f"something, it flips hard:\n\n"
+                f"- of the **{int(ms.n_large)}** misses worth half a run or "
+                f"more, **{ms.full_count_share_large:.0%}** were full counts\n"
+                f"- of the **100 largest**, **{ms.full_count_share_top100:.0%}** were\n\n"
+                f"The mechanism is clean: on 3-2 the call *is* the plate "
+                f"appearance — ball four or strike three, no third outcome — so "
+                f"the run-expectancy swing is as large as a single call ever "
+                f"gets. An endorsed full-count miss averages "
+                f"**{ms.full_count_mean_dre:.2f} runs** at stake versus "
+                f"**{ms.non_full_mean_dre:.2f}** everywhere else, which drops "
+                f"the break-even to about **{ms.full_count_mean_p_star:.0%}** — "
+                f"you should challenge a borderline 3-2 pitch on a hunch. The "
+                f"case studies below land on 3-2 by themselves, pulled from "
+                f"real games by expected-runs rank alone — independent "
+                f"confirmation the model flags the right moments."
+            )
+            st.markdown(
+                "**Takeaway:** if a team puts extra attention on exactly one "
+                "situation, make it the borderline full count. That's where "
+                "the unclaimed runs are concentrated."
+            )
+            _order = ["0-0", "0-1", "0-2", "1-0", "1-1", "1-2",
+                      "2-0", "2-1", "2-2", "3-0", "3-1", "3-2"]
+            _scope_lbl = {"all": "All endorsed misses",
+                          "large": "≥ 0.5 runs forfeited", "top100": "100 largest"}
+            mb = miss_by_count.copy()
+            mb["Scope"] = mb.scope.map(_scope_lbl)
+            st.altair_chart(
+                alt.Chart(mb).mark_bar().encode(
+                    x=alt.X("count_label:N", sort=_order, title="Count (balls-strikes)"),
+                    xOffset=alt.XOffset("Scope:N", sort=list(_scope_lbl.values())),
+                    y=alt.Y("pct:Q", axis=alt.Axis(format="%"),
+                            title="Share of that set"),
+                    color=alt.Color("Scope:N", sort=list(_scope_lbl.values()),
+                                    scale=alt.Scale(domain=list(_scope_lbl.values()),
+                                                    range=[COLOR_OBSERVED, COLOR_OPTIMAL,
+                                                           COLOR_CEILING]),
+                                    legend=alt.Legend(title=None)),
+                    tooltip=["Scope", "count_label",
+                             alt.Tooltip("pct:Q", format=".0%"), "n"],
+                ).properties(height=240), width='stretch')
+            st.caption(
+                "The same 16,302 pitches under three cuts: everything, the "
+                "≥0.5-run tail, and the 100 largest. 3-2 is a rounding error "
+                "in the first and the plurality in the last.")
+
+            st.divider()
+            st.markdown("##### The cases")
+            st.caption("Where this set sits: " + sub.comparable_desc.iloc[0])
+            for _, row in sub.iterrows():
+                render_case(row, "missed")
+
+        with g2:
+            st.markdown(
+                "One team, one game, the whole thesis: both challenges spent "
+                "early — and lost — on calls worth almost nothing, then a call "
+                "worth **more than a run** and clearly wrong, with nothing left "
+                "to challenge it. This is \"challenge *different*, not "
+                "*more*\" in a single box score."
+            )
+            sub = cases[cases.category == "burn"].sort_values("rank")
+            if len(sub):
+                st.caption("Where this set sits: " + sub.comparable_desc.iloc[0])
+                for _, row in sub.iterrows():
+                    render_case(row, "burn")
+            else:
+                st.write("No qualifying games this season.")
+
+        with g3:
+            st.markdown(
+                "The model isn't only a critic. These were genuinely close "
+                "calls — the kind you would not be *sure* about — that the "
+                "optimal policy still says to challenge, because the leverage "
+                "is high and the break-even tiny. All were **made, and won**."
+            )
+            sub = cases[cases.category == "endorsed_win"].sort_values("rank")
+            cs = coinflip_summary
+            cin = coinflip_team[coinflip_team.team_abbr == "CIN"].iloc[0]
+
+            st.markdown("##### Do the coin-flip wins cluster — or is everyone equally good at them?")
+            st.markdown(
+                f"They cluster. Across the 30 teams, the number of "
+                f"genuinely-uncertain endorsed challenges a team makes per game "
+                f"correlates with its total runs gained from challenges at "
+                f"**r = {cs.r_attempts_runs:.2f}** "
+                f"(p {'< 0.001' if cs.p_attempts_runs < 0.001 else f'= {cs.p_attempts_runs:.3f}'}). "
+                f"Part of that is mechanical — a won coin-flip challenge *is* "
+                f"runs — so the cleaner test is the same rate against runs "
+                f"gained on a team's **other**, non-coin-flip challenges. It "
+                f"still holds: **r = {cs.r_attempts_runs_other:.2f}** "
+                f"(p = {cs.p_attempts_runs_other:.3f}). Teams that pull the "
+                f"trigger on close, high-leverage calls also do better on the "
+                f"routine ones — it reads as a general challenging skill, not a "
+                f"lucky run of 50/50s."
+            )
+            st.markdown(
+                f"**{int(cs.top5_overlap)} of the top 5** runs-gained teams "
+                f"({cs.top5_runs_teams}) are also top 5 in coin-flip rate "
+                f"({cs.top5_by_cf_rate_teams}). The club leading both is "
+                f"**Cincinnati** — the same one the catcher analysis singles "
+                f"out for Tyler Stephenson's individual accuracy. Its edge "
+                f"shows up here as a **{cin.cf_win_rate:.0%} win rate on "
+                f"{int(cin.cf_attempts)} coin-flip challenges**. Same finding, "
+                f"different angle: a sharp battery lets a team act on calls "
+                f"other teams have to let go."
+            )
+            ct = coinflip_team.copy()
+            ct["Highlight"] = np.where(
+                ct.team_abbr.isin(["CIN", "MIN", "ATH", "COL", "CWS"]),
+                "Top-5 runs gained", "Other teams")
+            enc = dict(
+                x=alt.X("cf_attempts_per_game:Q",
+                        title="Genuinely-uncertain endorsed challenges per game"),
+                y=alt.Y("runs_other_per_game:Q",
+                        title="Runs gained per game on all OTHER challenges"))
+            pts = alt.Chart(ct).mark_circle(size=110, opacity=0.8).encode(
+                color=alt.Color("Highlight:N", scale=alt.Scale(
+                    domain=["Top-5 runs gained", "Other teams"],
+                    range=[COLOR_OPTIMAL, COLOR_OBSERVED]),
+                    legend=alt.Legend(title=None)),
+                tooltip=["team_abbr", alt.Tooltip("cf_attempts_per_game:Q", format=".2f"),
+                         alt.Tooltip("runs_gained:Q", title="Runs gained (all)", format=".1f"),
+                         alt.Tooltip("runs_gained_other:Q", title="Runs gained (other)", format=".1f")],
+                **enc)
+            trend = alt.Chart(ct).transform_regression(
+                "cf_attempts_per_game", "runs_other_per_game").mark_line(
+                color="#334155", strokeDash=[5, 3]).encode(**enc)
+            labels = alt.Chart(ct[ct.Highlight == "Top-5 runs gained"]).mark_text(
+                dx=9, align="left", fontWeight="bold", color=COLOR_OPTIMAL).encode(
+                text="team_abbr", **enc)
+            st.altair_chart((pts + trend + labels).properties(height=320),
+                            width='stretch')
+
+            cr = coinflip_role.copy()
+            f_share = cr.loc[cr.challenger == "fielding", "share_of_role_challenges"].iloc[0]
+            b_share = cr.loc[cr.challenger == "batting", "share_of_role_challenges"].iloc[0]
+            st.markdown(
+                f"**By role:** catchers and pitchers make more of them — "
+                f"**{f_share:.0%}** of fielding-side challenges are "
+                f"coin-flip-endorsed versus **{b_share:.0%}** of batting-side "
+                f"ones. Consistent with the vantage-point result elsewhere on "
+                f"this page: reading location from behind the plate lets the "
+                f"battery act on closer calls than a batter can from the side."
+            )
+            st.caption(
+                f"Two caveats. It's the *volume* of good borderline attempts "
+                f"that tracks with run production, not the win rate on them "
+                f"(win rate vs. other-challenge runs: "
+                f"r = {cs.r_winrate_runs_other:+.2f}, "
+                f"p = {cs.p_winrate_runs_other:.2f} — not significant). And the "
+                f"raw success rate on these looks high "
+                f"({cs.cf_win_rate_overall:.0%}) because players only challenge "
+                f"the band-pitches they already feel good about — the model "
+                f"would tell you to fire at 45%."
+            )
+
+            st.divider()
+            st.markdown("##### The cases")
+            st.caption("Where this set sits: " + sub.comparable_desc.iloc[0])
+            for _, row in sub.iterrows():
+                render_case(row, "endorsed_win")
+
+        st.divider()
+        st.caption(
+            "Cases regenerated by scripts/build_case_studies.py from the same "
+            "per-pitch scoring as every other number on this site; \"what "
+            "happened next\" is pulled from the MLB Stats API play-by-play.")
 
     # ---------------------------------------------------------------- tab 2
     PRESETS = {

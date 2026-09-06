@@ -37,6 +37,7 @@ as much as the analysis being correct.
 - [ ] Step 1.3: run expectancy by count and base-out state
 - [ ] Step 1.4: decision model (backward induction)
 - [ ] Step 1.5: findings + charts
+- [x] Step 1.6: real-game case studies tab (see "Case studies" section below)
 - [ ] Part 4: deploy
 
 Update this checklist as things land.
@@ -435,6 +436,88 @@ observed success rate means players are under-challenging.
 source .venv/bin/activate
 python src/ingest.py                  # pull Statcast (slow, cached)
 python src/build_db.py                # load parquet -> DuckDB
+python scripts/build_case_studies.py  # real-game case studies + follow-up aggregates (network: Stats API)
 python scripts/build_app_data.py      # precompute app inputs
 streamlit run app/streamlit_app.py    # local app
 ```
+
+## Case studies ("Real games from 2026" tab)
+
+Second tab in the app, right after the headline decomposition and before the
+"Should I challenge?" tool -- the most accessible content on the site, so it's
+placed accordingly. Built by `scripts/build_case_studies.py` ->
+`data/case_studies.parquet` (+ six follow-up aggregate parquets), copied to
+`app/data/` by `build_app_data.py` (added to its plain-copy loop; every file
+carries the policy model's `model_version`/`generated_at` stamp so the
+provenance guard passes).
+
+**What it does.** Turns the per-pitch scoring already in
+`challenge_opportunities.parquet` (`p_success` = P(the original call was wrong);
+`dre` = runs at stake if it flips) into named, dated at-bats, in three
+categories:
+  1. `missed`       -- not challenged, challenge in hand (`k_incorrect < 2`),
+                       model-endorsed (`ev_net > 0`). Ranked by
+                       `ev_net = p_wrong*dre - (1-p_wrong)*C(k)`.
+  2. `burn`         -- both challenges lost on calls averaging < 0.15 expected
+                       runs (and none high-leverage), then a call >=80% likely
+                       wrong / >=0.5 runs later in regulation with nothing left.
+                       Ranked by the leverage gap. 26 team-games fit.
+  3. `endorsed_win` -- a challenge that WON where `p_wrong` sat in [0.45, 0.78]
+                       (a real coin flip by the model's read) but the
+                       break-even was tiny. Shows the model isn't only critical.
+
+**Challenge-token reconstruction.** For each (game, side), walk that side's
+actual challenges in order; a pitch's `k_used` = incorrect challenges spent
+before it, minus `max(0, inning-9)` for extra-inning restores (matches
+`abs_policy.py`'s `k -> max(k-1, 0)` per extra inning). `challenges_remaining =
+2 - k_used`. For the exhausted state (`k_used >= 2`) the endorsement is
+evaluated at `k_eval = min(k_used, 1)` -- i.e. "would the optimal policy have
+wanted this challenge if one were available" -- which is the quantity category 2
+needs.
+
+**Which P(wrong).** Uses `p_success` (geometry vs. this batter's ABS zone with
+0.5-inch tracking blur -- the near-ceiling precision), NOT the decision tool's
+role-posterior at the fitted player sigma. `p_success` answers "was the call
+objectively wrong"; the role-posterior answers "should a player with this much
+noise fire". For case studies the former is the right headline number; the
+latter caps out near ~0.5 even for egregious misses. The zone plot in the tab
+reuses the decision-tool geometry (rulebook box + dashed ball-radius boundary +
+to-scale plate) with a marker at the pitch's `(plate_x, plate_z)`.
+
+**"What happened next"** is pulled from `statsapi .../feed/live` (rest of the
+PA + half-inning runs + final line) and cached under `data/_feedlive_cache/`.
+It's colour only -- the tab says so explicitly, twice -- because a missed
+challenge is a mistake at the decision, not because of the outcome.
+
+**Three quantified findings baked into the tab (from `analysis_extras()`):**
+
+1. **The 3-2 concentration is real, but only in the tail.** Across all 16,302
+   model-endorsed missed opportunities, 3-2 counts are 2.4% (0-0 dominates at
+   ~40% by sheer volume of low-stakes takes). But of the 192 misses worth
+   >= 0.5 runs, **50%** are 3-2; of the 100 largest, **62%**. Mechanism: on a
+   full count the call ends the PA outright (walk or strikeout, no third
+   outcome), so the RE swing is maximal -- endorsed full-count misses average
+   0.60 runs at stake vs. 0.15 elsewhere, pushing the break-even to ~15%.
+   Practical takeaway stated in the tab: if a team studies one situation, make
+   it the borderline full count.
+
+2. **The 16,302 figure (~7.7/game) is almost all small change.** Median
+   `ev_net` forfeited = 0.07 runs; 34% under 0.05, 89% under 0.20. The
+   actionable subset: ~1,833 misses worth >= 0.20 runs (~0.87/game) and 192
+   worth >= 0.50 (one every ~11 games). Important nuance in the copy: a small
+   `ev_net` is low *stakes*, not a *marginal decision* -- the median miss still
+   clears its break-even by ~40 points of confidence.
+
+3. **Coin-flip wins cluster by team, and it survives de-circularisation.**
+   Coin-flip endorsed challenges/game vs. total runs gained: r = 0.74
+   (p < 1e-5) -- but partly mechanical (a won cf challenge IS runs). Same rate
+   vs. runs gained on a team's OTHER (non-cf) challenges: **r = 0.57,
+   p = 0.001** -- so it reads as a general "this team challenges well" skill,
+   not a lucky run of 50/50s. 4 of the top-5 runs-gained teams are top-5 in
+   cf-rate; CIN leads both (92% win rate on 38 cf challenges) -- the same club
+   the catcher analysis singles out for Tyler Stephenson, so this strengthens
+   that finding from another angle. By role: fielding-side challenges are
+   coin-flip-endorsed 11% of the time vs. 9% batting-side, consistent with the
+   vantage-point sigma result. Caveat in the copy: it's the *volume* of good
+   borderline attempts that tracks with run production, not the win rate on
+   them (win rate vs. other-runs: r = -0.35, p = 0.06, n.s.).

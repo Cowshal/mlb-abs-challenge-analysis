@@ -256,7 +256,10 @@ def main():
                  "zone_heatmap", "zone_interaction", "zone_sigma",
                  "zone_sigma_sensitivity", "zone_sigma_sensitivity_bootstrap",
                  "option_values", "re_2026", "posterior_lookup",
-                 "split_half", "team_significance", "team_sigma"):
+                 "split_half", "team_significance", "team_sigma",
+                 "case_studies", "endorsed_miss_by_count", "endorsed_miss_summary",
+                 "endorsed_miss_evnet_hist", "coinflip_by_team",
+                 "coinflip_by_role", "coinflip_summary"):
         path = Path(f"data/{name}.parquet")
         if path.exists():
             pd.read_parquet(path).to_parquet(OUT / f"{name}.parquet", index=False)
