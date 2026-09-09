@@ -1,5 +1,7 @@
 # Who's Leaving Runs on the Table?
 
+**By [Kaushal Namuduri](https://github.com/Cowshal)**
+
 **Live app: [mlb-abs-challenge-analysis.streamlit.app](https://mlb-abs-challenge-analysis.streamlit.app)**
 
 **Optimal ABS challenge policy vs. observed behaviour — 2026 MLB season, 9,032 challenges across 2,107 games.**

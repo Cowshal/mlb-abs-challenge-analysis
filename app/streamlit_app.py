@@ -18,7 +18,17 @@ from run_expectancy import flip_value
 
 DATA = Path(__file__).parent / "data"
 
-st.set_page_config(page_title="ABS Challenge Optimizer", layout="wide")
+st.set_page_config(
+    page_title="ABS Challenge Optimizer",
+    layout="wide",
+    menu_items={
+        "About": (
+            "**MLB ABS Challenge Policy Analysis**\n\n"
+            "By Kaushal Namuduri\n\n"
+            "https://github.com/Cowshal/mlb-abs-challenge-analysis"
+        )
+    },
+)
 
 # One learned color encoding, used everywhere: gray = what actually happened,
 # blue = what the model recommends, amber = an assumption-dependent ceiling.
@@ -259,6 +269,11 @@ try:
     st.title("Who's leaving runs on the table?")
     st.caption("Optimal ABS challenge policy vs. observed behaviour, 2026 MLB season "
                "— 9,032 challenges across 2,107 games")
+    st.caption(
+        "By **Kaushal Namuduri** · "
+        "[github.com/Cowshal/mlb-abs-challenge-analysis]"
+        "(https://github.com/Cowshal/mlb-abs-challenge-analysis)"
+    )
 
     # ---------------------------------------------------------------- intro panel
     obs, ply, ceil = (dec.runs_per_team_game.iloc[i] for i in (0, 1, 2))
@@ -1557,6 +1572,10 @@ try:
     st.caption(
         f"Policy model: `{_policy_v}` (generated {_policy_t}) · "
         f"Perceptual-σ fit: `{_sigma_v}` (generated {_sigma_t})"
+    )
+    st.caption(
+        "Built and analysed by **Kaushal Namuduri** — "
+        "[source on GitHub](https://github.com/Cowshal/mlb-abs-challenge-analysis)"
     )
 except Exception as e:
     st.error(
