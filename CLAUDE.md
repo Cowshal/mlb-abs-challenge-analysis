@@ -625,3 +625,19 @@ working, not a bug.
 season-date constants in `ingest.py` + `collect_abs_challenges.py`, un-freeze
 the zone-sigma scripts, and re-check every `tol` / `Occ` regex in
 `reported_figures.py` against whatever the prose says by then.
+
+**Python version (found 2026-09-09, first CI run failed on `numpy==2.5.2`).**
+Local dev is **3.14**; `requirements-dev.txt` / `requirements.txt` are frozen
+from there. Checked every pin's `Requires-Python` + wheel availability against
+PyPI: floors are `>=3.12` (numpy, scipy, xgboost), nothing needs 3.13+. CI
+and `.python-version` are pinned to **3.12** — the newest version with a
+prebuilt wheel for *every* pin. The one thing blocking 3.13 is
+**`ruptures==1.1.9`** (top wheel is cp312; 3.13 would build from sdist).
+`ruptures` is not imported anywhere in `src/`, `scripts/`, or `app/` — it's a
+stray/leftover dep. If a future runner bump to 3.13/3.14 is wanted, drop
+`ruptures` from `requirements-dev.txt` first (don't loosen the other pins).
+`xgboost==3.4.1` also has no `cpXXX` wheel but ships `py3-none-manylinux`,
+which installs on any 3.12+, so it is fine. **Streamlit Cloud** has the same
+`>=3.12` floor (numpy/pandas in `requirements.txt`); its app Python version
+must be set to 3.12+ in advanced settings or a redeploy fails at
+`pip install` — `.python-version` (repo root) is the portable hint for it.
