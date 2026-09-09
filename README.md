@@ -491,6 +491,16 @@ changed it commits the rebuilt parquet back to `main` — which is what makes
 Streamlit Community Cloud redeploy. No servers, no secrets (every source is a
 public API).
 
+**Python version.** Development is on 3.14; `requirements-dev.txt` is frozen
+from there and several pins (`numpy`, `scipy`, `xgboost`) require ≥ 3.12. CI
+runs **3.12** — the newest version for which every pinned package has a
+prebuilt wheel (`ruptures==1.1.9`, currently unused, has no wheel past cp312
+and would trigger a source build on 3.13+). `requirements.txt` (the app) has
+the same ≥ 3.12 floor from `numpy`/`pandas`, so the repo carries a
+`.python-version` of `3.12`; the Streamlit Cloud app's Python version must be
+set to 3.12 or newer in its advanced settings or a redeploy will fail at
+`pip install`.
+
 The risk with automating that is a site that updates its charts but not the
 sentences next to them. So `src/reported_figures.py` is a manifest of every
 data-derived statistic that appears in prose — the decomposition table, the
