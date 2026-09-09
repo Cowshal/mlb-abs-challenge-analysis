@@ -557,6 +557,19 @@ failure, not a data problem, and it drove a site-wide pass (2026-09-05):
   not move with them. If you add a new CI to the site, add the "what this
   means for the conclusion" sentence next to it in the same edit.
 
+**UPDATE (2026-09-09): the split-half conclusion was softened after five days
+of new games.** Team split-half moved r = 0.22 -> 0.28 and player->=8 moved
+r = 0.32 -> 0.27 -- converging, on one partial season at n = 30 teams /
+n ~ 108 players. The site no longer claims player-level reliability is
+"meaningfully higher" than team-level (true only at the >=10/half cut now).
+README / writeup / app now say the split-half contrast is *fragile* and that
+the "it's a player/personnel skill, not front-office" reading leans on the
+two results that HAVE been stable across every refresh: the catcher-quality
+correlation (r = 0.44 -> 0.48, p = 0.007) and the role-sigma effect
+replicating in 28/30 teams. The forward-looking question stays open as
+before. Don't re-tighten this back to "resolved" on a single good refresh --
+the point is that split-half r at these sample sizes is not yet trustworthy.
+
 ## Automated refresh pipeline
 
 Added 2026-09-09. The season is live, so the data changes nightly; this keeps
@@ -641,3 +654,22 @@ which installs on any 3.12+, so it is fine. **Streamlit Cloud** has the same
 `>=3.12` floor (numpy/pandas in `requirements.txt`); its app Python version
 must be set to 3.12+ in advanced settings or a redeploy fails at
 `pip install` — `.python-version` (repo root) is the portable hint for it.
+
+**Tolerance philosophy (revised 2026-09-09 after the first real drift run).**
+Five days of games moved 28 figures and the gate tripped on rounding-boundary
+noise (e.g. `opt_runs_per_game` 0.0068 vs a 0.006 tol). Rule now: a figure
+trips **only when a reader would notice an inconsistency between the prose and
+a chart/table on the same page** -- bar-chart figures get ~0.02 on a runs
+axis, text-only numbers get much looser tol (nobody eyeballs 53.7% vs 55%).
+Three `Figure.kind`s: `point` (most), `range` (the decision gap -- prose
+states an 8-10 band, the Occ captures (lo,hi), check passes while the value
+sits in [lo-tol, hi+tol]; use for anything that has visibly wandered across
+refreshes), `floor` (growing season counts -- prose says "9,000+", check only
+fires on a data regression; a fixed absolute tol is meaningless for a
+monotonic count). Every figure carries a one-line `why_tol` string that lands
+in `reported_figures.json`. The app title caption and the endorsed-miss
+headers now read their counts from `reported_figures.json` /
+`endorsed_miss_summary` at load time, so those cannot drift at all. Figures
+dropped in this pass: `n_challenges_raw`, `n_borderline` (prose no longer
+states exact challenge counts), `n_endorsed_misses`, stephenson's raw attempt
+count. 56 -> 51 tracked figures.
