@@ -1,0 +1,542 @@
+{
+  "data_through": "2026-09-03",
+  "figures": {
+    "bat_success_modeled": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "48.8",
+      "tol": 0.6,
+      "unit": "pp",
+      "value": 48.754534461910524
+    },
+    "catcher_quality_corr_p": {
+      "appears_in": [
+        "app/streamlit_app.py"
+      ],
+      "rendered": "0.01",
+      "tol": 0.006,
+      "unit": "",
+      "value": 0.014104600971927115
+    },
+    "catcher_quality_corr_r": {
+      "appears_in": [
+        "README.md",
+        "app/streamlit_app.py"
+      ],
+      "rendered": "0.44",
+      "tol": 0.04,
+      "unit": "",
+      "value": 0.44346824668497037
+    },
+    "ceil_challenges_per_game": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "4.76",
+      "tol": 0.08,
+      "unit": "",
+      "value": 4.762695775984812
+    },
+    "ceil_runs_per_game": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "0.623",
+      "tol": 0.008,
+      "unit": "",
+      "value": 0.6227331418081749
+    },
+    "ceil_success_rate": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "79.9",
+      "tol": 0.7,
+      "unit": "pp",
+      "value": 79.90034877927255
+    },
+    "cin_bonferroni_p": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "0.02",
+      "tol": 0.012,
+      "unit": "",
+      "value": 0.023113650973236588
+    },
+    "cin_z_above_league": {
+      "appears_in": [
+        "README.md",
+        "app/streamlit_app.py",
+        "docs/writeup.md"
+      ],
+      "rendered": "3.4",
+      "tol": 0.15,
+      "unit": "sd",
+      "value": 3.363196493713398
+    },
+    "corrected_match_borderline_pct": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "99.78",
+      "tol": 0.1,
+      "unit": "pp",
+      "value": 99.782466826191
+    },
+    "corrected_match_pct": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "99.75",
+      "tol": 0.1,
+      "unit": "pp",
+      "value": 99.7464447139235
+    },
+    "decision_gap_runs_per_season": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "9",
+      "tol": 0.7,
+      "unit": "runs/season",
+      "value": 9.070480157014664
+    },
+    "fld_success_modeled": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "57.9",
+      "tol": 0.6,
+      "unit": "pp",
+      "value": 57.87216663263223
+    },
+    "height_ambiguous_rate_pct": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "7.8",
+      "tol": 0.4,
+      "unit": "pp",
+      "value": 7.8125
+    },
+    "height_flip_rate_pct": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "2.1",
+      "tol": 0.3,
+      "unit": "pp",
+      "value": 2.083333333333333
+    },
+    "info_gap_season_ceiling_010": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "74.2",
+      "tol": 0.6,
+      "unit": "runs/season",
+      "value": 74.24291243058272
+    },
+    "info_gap_season_ceiling_025": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "67.7",
+      "tol": 0.6,
+      "unit": "runs/season",
+      "value": 67.72665475470679
+    },
+    "info_gap_season_ceiling_050": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "55.2",
+      "tol": 0.6,
+      "unit": "runs/season",
+      "value": 55.20547788012175
+    },
+    "info_gap_season_ceiling_075": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "42.8",
+      "tol": 0.6,
+      "unit": "runs/season",
+      "value": 42.76632932729498
+    },
+    "info_gap_season_ceiling_100": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "32.0",
+      "tol": 0.6,
+      "unit": "runs/season",
+      "value": 32.00807366490389
+    },
+    "n_borderline": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "4,597",
+      "tol": 200,
+      "unit": "",
+      "value": 4597.0
+    },
+    "n_challenges_raw": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "9,071",
+      "tol": 250,
+      "unit": "challenges",
+      "value": 9071.0
+    },
+    "n_endorsed_misses": {
+      "appears_in": [
+        "app/streamlit_app.py"
+      ],
+      "rendered": "16,302",
+      "tol": 250,
+      "unit": "",
+      "value": 16302.0
+    },
+    "n_games_2026": {
+      "appears_in": [
+        "README.md",
+        "app/streamlit_app.py"
+      ],
+      "rendered": "2,107",
+      "tol": 60,
+      "unit": "games",
+      "value": 2107.0
+    },
+    "n_opportunities": {
+      "appears_in": [
+        "README.md",
+        "app/streamlit_app.py",
+        "docs/writeup.md"
+      ],
+      "rendered": "9,032",
+      "tol": 250,
+      "unit": "challenges",
+      "value": 9032.0
+    },
+    "n_robust_batters": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "201",
+      "tol": 3,
+      "unit": "",
+      "value": 201.0
+    },
+    "naive_disagreement_borderline_pct": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "67.2",
+      "tol": 1.0,
+      "unit": "pp",
+      "value": 67.21775070698281
+    },
+    "naive_disagreement_pct": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "34.2",
+      "tol": 0.6,
+      "unit": "pp",
+      "value": 34.20791533458274
+    },
+    "obs_challenges_per_game": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "2.14",
+      "tol": 0.06,
+      "unit": "/team-game",
+      "value": 2.143331751305173
+    },
+    "obs_challenges_per_game_1dp": {
+      "appears_in": [
+        "README.md",
+        "app/streamlit_app.py",
+        "docs/writeup.md"
+      ],
+      "rendered": "2.1",
+      "tol": 0.09,
+      "unit": "",
+      "value": 2.143331751305173
+    },
+    "obs_mean_dre": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "0.216",
+      "tol": 0.006,
+      "unit": "",
+      "value": 0.2157184874421077
+    },
+    "obs_median_dre": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "0.146",
+      "tol": 0.006,
+      "unit": "",
+      "value": 0.14646557330819737
+    },
+    "obs_runs_per_game": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "0.226",
+      "tol": 0.006,
+      "unit": "runs/team-game",
+      "value": 0.22596796873943156
+    },
+    "obs_runs_per_overturn": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "0.196",
+      "tol": 0.006,
+      "unit": "",
+      "value": 0.19633588046762157
+    },
+    "obs_success_rate": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "53.7",
+      "tol": 0.6,
+      "unit": "pp",
+      "value": 53.69796279893711
+    },
+    "obs_success_rate_54": {
+      "appears_in": [
+        "README.md",
+        "app/streamlit_app.py"
+      ],
+      "rendered": "54",
+      "tol": 0.9,
+      "unit": "",
+      "value": 53.69796279893711
+    },
+    "opt_challenges_per_game": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "2.90",
+      "tol": 0.06,
+      "unit": "",
+      "value": 2.896298054105363
+    },
+    "opt_mean_dre": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "0.259",
+      "tol": 0.006,
+      "unit": "",
+      "value": 0.25884738133760726
+    },
+    "opt_median_dre": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "0.201",
+      "tol": 0.006,
+      "unit": "",
+      "value": 0.20068132112903253
+    },
+    "opt_runs_per_game": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "0.282",
+      "tol": 0.006,
+      "unit": "",
+      "value": 0.2819585869926085
+    },
+    "opt_runs_per_overturn": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "0.226",
+      "tol": 0.006,
+      "unit": "",
+      "value": 0.2264913239776691
+    },
+    "opt_success_rate": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "43.0",
+      "tol": 0.6,
+      "unit": "pp",
+      "value": 42.982384268742315
+    },
+    "player_split_half_n_min10": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "82",
+      "tol": 4,
+      "unit": "",
+      "value": 82.0
+    },
+    "player_split_half_n_min8": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "104",
+      "tol": 4,
+      "unit": "",
+      "value": 104.0
+    },
+    "player_split_half_r_min10": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "0.38",
+      "tol": 0.04,
+      "unit": "",
+      "value": 0.38076108256781327
+    },
+    "player_split_half_r_min8": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "0.32",
+      "tol": 0.04,
+      "unit": "",
+      "value": 0.32423548822276815
+    },
+    "sigma_bat_in": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "2.75",
+      "tol": 0.05,
+      "unit": "in",
+      "value": 2.74601381749446
+    },
+    "sigma_fld_in": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "1.99",
+      "tol": 0.05,
+      "unit": "in",
+      "value": 1.9860639893845728
+    },
+    "sigma_precision_gap_pct": {
+      "appears_in": [
+        "README.md",
+        "app/streamlit_app.py",
+        "docs/writeup.md"
+      ],
+      "rendered": "28",
+      "tol": 1.5,
+      "unit": "pp",
+      "value": 27.67465419395766
+    },
+    "stephenson_attempts": {
+      "appears_in": [
+        "docs/writeup.md"
+      ],
+      "rendered": "119",
+      "tol": 4,
+      "unit": "",
+      "value": 119.0
+    },
+    "stephenson_pct_rank": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "85",
+      "tol": 4,
+      "unit": "",
+      "value": 84.94623655913979
+    },
+    "stephenson_success_pct": {
+      "appears_in": [
+        "docs/writeup.md"
+      ],
+      "rendered": "69",
+      "tol": 2.5,
+      "unit": "pp",
+      "value": 68.90756302521008
+    },
+    "team_split_half_r": {
+      "appears_in": [
+        "README.md",
+        "docs/writeup.md"
+      ],
+      "rendered": "0.22",
+      "tol": 0.04,
+      "unit": "",
+      "value": 0.2178178105702035
+    },
+    "zone_lr_swing_pp": {
+      "appears_in": [
+        "README.md"
+      ],
+      "rendered": "38",
+      "tol": 2.5,
+      "unit": "pp",
+      "value": 37.88269169845597
+    },
+    "zone_sigma_boot_ci_hi": {
+      "appears_in": [
+        "README.md"
+      ],
+      "note": "frozen: zone_sigma_bootstrap.py is not re-run by the daily pipeline",
+      "rendered": "3.1",
+      "tol": 0.35,
+      "unit": "runs/season",
+      "value": 3.1142938279266072
+    },
+    "zone_sigma_boot_ci_lo": {
+      "appears_in": [
+        "README.md"
+      ],
+      "note": "frozen: zone_sigma_bootstrap.py is not re-run by the daily pipeline",
+      "rendered": "-1.6",
+      "tol": 0.35,
+      "unit": "runs/season",
+      "value": -1.5548283776842922
+    },
+    "zone_sigma_gap_move_runs": {
+      "appears_in": [
+        "README.md"
+      ],
+      "note": "frozen: zone_sigma_refit.py is not re-run by the daily pipeline",
+      "rendered": "0.74",
+      "tol": 0.06,
+      "unit": "runs/season",
+      "value": 0.7413158486763933
+    }
+  },
+  "generated_at": "2026-09-09T13:50:35.920360+00:00",
+  "n_figures": 56
+}

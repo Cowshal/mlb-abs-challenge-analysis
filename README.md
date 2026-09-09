@@ -4,6 +4,8 @@
 
 **Live app: [mlb-abs-challenge-analysis.streamlit.app](https://mlb-abs-challenge-analysis.streamlit.app)**
 
+[![refresh data](https://github.com/Cowshal/mlb-abs-challenge-analysis/actions/workflows/refresh.yml/badge.svg)](https://github.com/Cowshal/mlb-abs-challenge-analysis/actions/workflows/refresh.yml)
+
 **Optimal ABS challenge policy vs. observed behaviour — 2026 MLB season, 9,032 challenges across 2,107 games.**
 
 2026 is the first season with the automated ball-strike challenge system. Each team
@@ -51,11 +53,11 @@ truth. So it is reported as a curve, not a number:
 
 | assumed ceiling σ | information gap (runs / team-season) |
 |---|---|
-| 0.10 in | 73.6 |
-| 0.25 in | 67.4 |
-| 0.50 in | 54.5 |
-| 0.75 in | 42.4 |
-| 1.00 in | 31.8 |
+| 0.10 in | 74.2 |
+| 0.25 in | 67.7 |
+| 0.50 in | 55.2 |
+| 0.75 in | 42.8 |
+| 1.00 in | 32.0 |
 
 ### The mechanism: leverage, not volume
 
@@ -435,26 +437,83 @@ already published.
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 
-python src/ingest.py                            # pull 2024-2026 Statcast
-python src/run_expectancy.py                    # RE table -> DuckDB
-python scripts/collect_abs_challenges.py        # 2026 challenge records
-python scripts/build_challenge_opportunities.py
-python scripts/estimate_perception_sigma.py
-python src/abs_policy.py                        # solve + decompose
-python scripts/zone_analysis.py                 # location-dependence test
-python scripts/zone_sigma_refit.py              # zone-sigma sensitivity check
-python scripts/build_decision_tool_data.py      # RE + posterior lookups for the app
-python scripts/build_app_data.py                # precompute for the app
-
+scripts/refresh_all.sh          # the whole pipeline, in dependency order
 streamlit run app/streamlit_app.py
 ```
 
+`refresh_all.sh` is the single entry point — it runs every step below in
+order, then `build_reported_figures.py`, which **fails the run if any
+hardcoded number in `README.md`, `docs/writeup.md`, or the app has drifted
+past tolerance** from the freshly rebuilt data (see "Keeping the prose
+honest" below). To run steps individually:
+
+```bash
+python src/ingest.py                            # Statcast pull (idempotent: 2024-25 cached, 2026 trailing re-pull)
+python src/run_expectancy.py                    # RE table -> DuckDB
+python scripts/collect_abs_challenges.py        # 2026 challenge records (end date = yesterday)
+python scripts/verify_ball_radius.py            # per-batter measured heights (fixed early-season window)
+python scripts/build_challenge_opportunities.py
+python scripts/estimate_perception_sigma.py
+python src/abs_policy.py                        # solve + decompose
+python scripts/team_decomposition.py
+python scripts/team_skill_test.py               # team split-half + significance + per-team sigma
+python scripts/player_skill_test.py             # player split-half + catcher accuracy
+python scripts/zone_analysis.py                 # location-dependence test
+python scripts/validate_ball_radius_classification.py
+python scripts/measured_height_uncertainty.py
+python scripts/build_decision_tool_data.py      # RE + posterior lookups for the app
+python scripts/build_case_studies.py            # "Real games from 2026" tab
+python scripts/build_app_data.py                # precompute for the app (runs its own guards)
+python scripts/build_reported_figures.py        # provenance snapshot + prose-drift gate
 ```
-src/        geometry, perception model, run expectancy, policy solver
-scripts/    data collection, validation, app precompute
+
+**Frozen, not run by `refresh_all.sh`:** `scripts/zone_sigma_refit.py` and
+`scripts/zone_sigma_bootstrap.py`. That sensitivity number is noise-dominated
+at one season of challenge data (see the Limitations section) and the
+bootstrap is 150 full DP re-solves. Their committed outputs in `app/data/`
+are the source of truth; `refresh_all.sh` seeds them back into `data/` so the
+downstream copy and provenance checks pass. Re-run them by hand and commit
+the new parquet when the season is complete or the method changes.
+
+```
+src/        geometry, perception model, run expectancy, policy solver, reported-figures manifest
+scripts/    data collection, validation, app precompute, refresh_all.sh orchestrator
 docs/       methodological findings
-app/        Streamlit app + precomputed parquet (96 KB)
+app/        Streamlit app + precomputed parquet (~100 KB)
+.github/    scheduled refresh workflow
 ```
+
+## Daily refresh and keeping the prose honest
+
+The season is live, so the data moves every night. `.github/workflows/refresh.yml`
+runs `scripts/refresh_all.sh` once a day (08:00 PT), and if `app/data/`
+changed it commits the rebuilt parquet back to `main` — which is what makes
+Streamlit Community Cloud redeploy. No servers, no secrets (every source is a
+public API).
+
+The risk with automating that is a site that updates its charts but not the
+sentences next to them. So `src/reported_figures.py` is a manifest of every
+data-derived statistic that appears in prose — the decomposition table, the
+σ values, the reliability correlations, the geometry match rates, the counts
+— each tied to the parquet it comes from and to a regex for where it's
+written. `scripts/build_reported_figures.py` regenerates
+`data/reported_figures.json` from the current data and then greps the prose;
+if a number has drifted past its tolerance, or an anchoring phrase can no
+longer be found, **the pipeline fails and the workflow opens a
+`pipeline-drift` issue naming each figure, its location, and its new value**,
+rather than pushing an internally inconsistent commit. The app footer shows
+the data-through date from the same JSON.
+
+Physical constants (17-inch plate, the ball radius, the 53.5% / 27% zone
+edges), rounded restatements of a tracked figure, and the per-team / per-player
+snapshot tables are deliberately excluded — see the comment block at the
+bottom of `src/reported_figures.py`.
+
+**After the 2026 regular season** (ends 2026-09-28) the workflow becomes a
+near-no-op: `ingest.py` stops pulling, nothing changes, nothing is committed.
+It is left enabled on purpose so it resumes automatically for 2027 — bump the
+season dates in `src/ingest.py` and `scripts/collect_abs_challenges.py` and
+un-freeze the zone-sigma scripts when that season starts.
 
 See `IDEAS.md` for the v2 list — count-varying thresholds and a win-probability
 objective are the two that would move the number most.

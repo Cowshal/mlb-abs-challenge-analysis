@@ -7,8 +7,10 @@ Run: python scripts/collect_abs_challenges.py
 Output: data/abs_challenges.parquet
 """
 import json
+import os
 import sys
 import time
+from datetime import date, timedelta
 import pandas as pd
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -17,7 +19,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from net import get_with_retries
 
 START_DATE = "2026-03-26"
-END_DATE = "2026-09-03"
+SEASON_END = "2026-09-28"  # last day of the 2026 regular season
+
+
+def _default_end_date():
+    """Yesterday (a completed slate by the time the scheduled refresh runs),
+    clamped to the regular-season end. Override with ABS_END_DATE=YYYY-MM-DD
+    for a reproducible historical pull."""
+    override = os.environ.get("ABS_END_DATE")
+    if override:
+        return override
+    end = min(date.today() - timedelta(days=1), date.fromisoformat(SEASON_END))
+    return max(end, date.fromisoformat(START_DATE)).isoformat()
+
+
+END_DATE = _default_end_date()
 N_WORKERS = 8
 
 PITCH_FIELDS = [

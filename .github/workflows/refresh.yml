@@ -1,0 +1,106 @@
+name: refresh data
+
+# Rebuilds the precomputed app data from a fresh Statcast pull once a day and,
+# if anything changed, commits app/data/ back to main -- which is what triggers
+# Streamlit Community Cloud to redeploy. If the pipeline fails (most often
+# because a prose figure in README.md / docs/writeup.md / the app has drifted
+# past tolerance -- see scripts/build_reported_figures.py) it opens/updates a
+# tracking issue instead of pushing a self-contradicting site.
+#
+# The 2026 regular season ends 2026-09-28; after that this is a near-no-op
+# (ingest.py stops pulling, nothing changes, nothing is committed). It is left
+# enabled on purpose so it resumes automatically for 2027 -- update the season
+# dates in src/ingest.py and scripts/collect_abs_challenges.py when that starts.
+
+on:
+  schedule:
+    # 15:00 UTC = 08:00 America/Los_Angeles during the season (PDT, UTC-7).
+    # cron has no DST; this is correct through early November.
+    - cron: "0 15 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    # The first run pulls three full Statcast seasons from scratch and can take
+    # well over an hour; steady-state runs (2024/25 cached below, 2026 a
+    # 4-day trailing re-pull) are ~15-25 min. Bump this once if run #1 times out.
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"   # keep in step with the local .venv / CLAUDE.md
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install pipeline dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      # The 2024 and 2025 seasons are final and their parquet never changes, so
+      # persist them (and pybaseball's own request cache) across runs. data/ is
+      # gitignored, so this is the only thing carrying them between runs.
+      - name: Cache finished-season Statcast pulls
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/statcast_2024.parquet
+            data/statcast_2025.parquet
+            ~/.cache/pybaseball
+          key: statcast-finished-v1
+
+      - name: Run the full refresh pipeline
+        id: pipeline
+        run: bash scripts/refresh_all.sh
+
+      - name: Commit refreshed app data
+        if: success()
+        run: |
+          git config user.name  "abs-refresh-bot"
+          git config user.email "actions@github.com"
+          # Only the regenerated, committed artifacts -- never README/writeup/app
+          # source (a drift there fails the step above and is fixed by hand).
+          git add app/data/
+          if git diff --cached --quiet; then
+            echo "no data changes -- nothing to commit"
+            exit 0
+          fi
+          git commit -m "data: daily refresh ($(date -u +%Y-%m-%d)) [skip ci]"
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Open/update a drift issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Data refresh pipeline failed"
+          body=$(printf '%s\n' \
+            "The scheduled \`refresh data\` workflow failed on $(date -u +%Y-%m-%dT%H:%MZ)." \
+            "" \
+            "Most common cause: a hardcoded statistic in README.md, docs/writeup.md, or" \
+            "app/streamlit_app.py has drifted past tolerance as the season progressed." \
+            "The failing step's log names each figure, where it appears, and the value it" \
+            "should now be. Fix the prose (or, if a figure was intentionally reworded," \
+            "update its Occ pattern in src/reported_figures.py) and re-run." \
+            "" \
+            "Run log: ${RUN_URL}")
+          existing=$(gh issue list --state open --label pipeline-drift --json number --jq '.[0].number' || true)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh label create pipeline-drift --color B60205 --description "scheduled refresh pipeline needs attention" 2>/dev/null || true
+            gh issue create --title "$title" --label pipeline-drift --body "$body"
+          fi

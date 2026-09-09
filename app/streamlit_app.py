@@ -4,6 +4,7 @@ ABS Challenge Optimizer -- 2026 MLB season.
 Loads precomputed parquet from app/data/ and does nothing but filter and plot.
 All modelling happens upstream in src/abs_policy.py.
 """
+import json
 import sys
 from pathlib import Path
 
@@ -60,6 +61,20 @@ def policy_color_encoding(field="Policy", legend=True):
 @st.cache_data
 def load(name):
     return pd.read_parquet(DATA / f"{name}.parquet")
+
+
+@st.cache_data
+def load_reported_figures():
+    """The pipeline's data-provenance snapshot (src/reported_figures.py ->
+    scripts/build_reported_figures.py). Optional: an older app/data/ set may
+    predate it, so every read is defensive."""
+    path = DATA / "reported_figures.json"
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return {}
 
 
 dec = load("policy_decomposition")
@@ -1573,6 +1588,17 @@ try:
         f"Policy model: `{_policy_v}` (generated {_policy_t}) · "
         f"Perceptual-σ fit: `{_sigma_v}` (generated {_sigma_t})"
     )
+    _rf = load_reported_figures()
+    if _rf.get("data_through"):
+        _run = str(_rf.get("generated_at", ""))[:10]
+        st.caption(
+            f"Data through **{_rf['data_through']}** (2026 regular season). "
+            + (f"Pipeline last refreshed {_run}; " if _run else "")
+            + f"{_rf.get('n_figures', 0)} headline figures are re-checked "
+            "against the text of this page and the README on every refresh. "
+            "The 2026 season is nearly over, but the pipeline is built to "
+            "resume for 2027."
+        )
     st.caption(
         "Built and analysed by **Kaushal Namuduri** — "
         "[source on GitHub](https://github.com/Cowshal/mlb-abs-challenge-analysis)"
