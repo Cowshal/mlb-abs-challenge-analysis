@@ -22,6 +22,12 @@ you're more likely right than the downstream cost of occasionally being
 wrong. The breakeven point isn't 50%. It should usually be a lot lower,
 especially early in a game when both challenges are still in hand.
 
+The uncomfortable corollary, and the thesis of this piece: **a lower challenge
+success rate can produce more value.** The optimal policy below wins about
+43% of its challenges against the league's 54%, and still nets more runs,
+because it spends challenges on calls that are *worth more* rather than calls
+that are *easy to win*. **Challenge accuracy is not challenge value.**
+
 So I set out to answer: how much are teams actually leaving on the table, and
 why? Getting there meant answering a much more basic question first — one I
 assumed I already knew the answer to, and didn't.
@@ -104,12 +110,12 @@ answer the original question: solve for the optimal policy, using the same
 imperfect information a player actually has, and compare it to what teams
 are doing.
 
-![Bar chart comparing runs per team per game across observed 2026 behavior (0.226), the optimal policy given the same information (0.277), and a hypothetical perfect-information ceiling (0.624)](images/decomposition_bars.png)
+![Bar chart comparing runs per team per game across observed 2026 behavior (0.226), the optimal policy given the same information (0.276), and a high-precision benchmark at sigma = 0.5 in (0.623)](images/decomposition_bars.png)
 
 Teams currently challenge about 2.1 times a game and win 53.7% of the time,
 netting an estimated 37 runs per team over a season. The optimal policy,
 given identical information, challenges more — about 2.9 times a game — and
-wins a *smaller* share: 42.5%. It still comes out ahead, at roughly 45 runs
+wins a *smaller* share: 42.6%. It still comes out ahead, at roughly 45 runs
 per team-season, a gap of roughly 8–10 runs (the estimate has moved by a run
 or two across data revisions as the season has filled in).
 
@@ -123,7 +129,21 @@ slugging: fewer hits, more total bases, a better outcome overall.
 
 This falls directly out of the asymmetry in the rules. Because a correct
 challenge is free, the breakeven confidence for firing depends entirely on
-how much the call is worth.
+how much the call is worth: `p* = C / (ΔRE + C)`, where `C` is the option
+value of holding one incorrect-challenge token and `ΔRE` is the run swing if
+the call flips. That formula is arithmetic — it needs no fitted parameter.
+What *is* a fitted-model output is the size of the resulting opportunity
+(~8–10 runs per team-season): it depends on the perceptual-noise fit, the
+posterior success probabilities, the opportunity distribution, and the
+policy simulation. Keep those two claims separate.
+
+The policy itself is a backward induction over `V(t, j, k)` — half-inning
+`t`, challengeable pitch `j` within it, incorrect challenges spent `k` — with
+rights absorbed at two incorrect and one challenge restored at the start of
+an extra inning only for a team that enters it exhausted. The option value
+exported to the app is summarized at the half-inning level (`C(t, k)`, not a
+distinct value per pitch), which is a deliberate approximation: nearly all of
+a token's worth is in future half-innings.
 
 ![Curve showing minimum confidence needed to challenge, falling from about 90% at low stakes to about 10% at high stakes, with two labeled points: a full-count call with runners on at 15%, and a 0-0 take with bases empty at 68%](images/threshold_curve.png)
 
@@ -290,6 +310,7 @@ produced, checked against arithmetic built from that same system. That's a
 real test of internal consistency — it's how I caught the ball-radius rule
 and confirmed the geometry — but it can't tell me how accurate MLB's cameras
 are in any absolute sense, because there's no independent measurement
-anywhere in the pipeline to check against. Any claim about a
-"perfect-information" ceiling is therefore an assumption, not a measurement,
-and I've reported it as a range rather than a single number for that reason.
+anywhere in the pipeline to check against. The high-precision benchmark
+(sigma = 0.5 in — not zero, and not "perfect information") is therefore an
+assumption, not a measurement, and I've reported the gap to it as a range
+rather than a single number for that reason.

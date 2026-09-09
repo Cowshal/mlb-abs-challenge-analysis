@@ -29,8 +29,9 @@ colour. A missed challenge is a mistake because of the decision at the time
 says this explicitly and the outcome is labelled as such here.
 
 Challenge-token accounting matches src/abs_policy.py exactly: two challenges to
-start, only an INCORRECT one is spent, rights gone after two incorrect, one
-restored at the start of each extra inning (k -> max(k - (inning-9), 0)).
+start, only an INCORRECT one is spent, rights gone after two incorrect, and one
+restored at the start of an extra inning ONLY for a side that enters it
+exhausted (challenge_rules.extra_inning_k_transition: k 0->0, 1->1, 2->1).
 
 Run: python scripts/build_case_studies.py
 Output: data/case_studies.parquet  (copied to app/data/ by build_app_data.py)
@@ -46,6 +47,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from net import get_with_retries
 from geometry import center_distance_to_zone, ball_edge_distance
+from challenge_rules import extra_inning_k_transition
 
 SEASON = 2026
 CACHE = Path("data/_feedlive_cache")
@@ -423,12 +425,21 @@ def main():
                for (g, s), sub in incorrect.groupby(["game_pk", "side"])}
 
     def k_used_before(game_pk, side, pos, inning):
-        """Incorrect challenges the side had spent *before* this pitch, after
-        crediting one back per extra inning already reached."""
+        """Incorrect-challenge state k the side is in *just before* the pitch
+        at `pos`, walking its incorrect challenges and the extra-inning
+        restores in chronological order. The restore only fires for a side
+        that enters the extra inning exhausted (k == 2 -> 1); a side holding
+        one or two challenges keeps what it has. Matches
+        src/abs_policy.py::simulate via challenge_rules.extra_inning_k_transition.
+        """
         positions = inc_pos.get((int(game_pk), side), [])
-        raw = sum(1 for p in positions if p < pos)
-        restored = max(0, inning - 9)
-        return max(0, raw - restored)
+        events = [((xi, -1, -1), "restore") for xi in range(10, int(inning) + 1)]
+        events += [(tuple(p), "incorrect") for p in positions if p < pos]
+        events.sort(key=lambda e: e[0])
+        k = 0
+        for _, kind in events:
+            k = extra_inning_k_transition(k) if kind == "restore" else min(k + 1, 2)
+        return k
 
     k_arr = np.array([k_used_before(g, s, p, i) for g, s, p, i in
                       zip(opp.game_pk, opp.side, opp.pos, opp.inning)])

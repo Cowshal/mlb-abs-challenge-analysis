@@ -5,8 +5,9 @@ challenge success swings 37.7 percentage points across zone regions
 everywhere in the zone" is worth checking, not just flagging as a footnote.
 
 This is a SENSITIVITY ANALYSIS, not a replacement for the canonical model.
-data/option_values.parquet, MODEL_VERSION="role_sigma_v1", and every headline
-number in the README/app/writeup are untouched by this script. It answers one
+data/option_values.parquet (abs_policy.MODEL_VERSION, currently "role_sigma_v2")
+and every headline number in the README/app/writeup are untouched by this
+script. It answers one
 question: if sigma is allowed to vary by zone region instead of being pooled
 across the whole zone, how much does the headline decision gap move?
 

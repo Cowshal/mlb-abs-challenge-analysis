@@ -44,7 +44,7 @@ def fig1_decomposition():
     dec = pd.read_parquet("app/data/policy_decomposition.parquet")
     labels = {"observed 2026": "Observed\n(2026)",
               "optimal @ player sigma": "Optimal\n(same information)",
-              "ceiling @ sigma=0.5in": "Ceiling\n(perfect information)"}
+              "ceiling @ sigma=0.5in": "High-precision benchmark\n(σ = 0.5 in)"}
     colors = {"observed 2026": COLOR_OBSERVED, "optimal @ player sigma": COLOR_OPTIMAL,
               "ceiling @ sigma=0.5in": COLOR_CEILING}
     order = ["ceiling @ sigma=0.5in", "optimal @ player sigma", "observed 2026"]

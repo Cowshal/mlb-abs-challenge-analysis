@@ -8,6 +8,25 @@
 
 **Optimal ABS challenge policy vs. observed behaviour — 2026 MLB season, 9,000+ challenges across 2,100+ games** (the season is live; the app footer shows the data-through date).
 
+> **Thesis in one line: MLB teams are challenging the wrong pitches — and
+> _challenge accuracy is not challenge value._** A value-maximizing policy wins
+> a *lower* share of its challenges (~43% vs. the league's ~54%) and still
+> comes out ahead, because it picks calls that are worth more runs.
+
+**Two distinct claims, kept separate throughout this repo:**
+
+1. **The decision rule is arithmetic.** Because a correct challenge is
+   returned, the break-even confidence to challenge is
+   `p* = C / (ΔRE + C)`, which follows directly from the challenge rules and
+   run expectancy. No fitted parameter, no hypothesis test.
+2. **The estimated size of the opportunity (~8–10 runs per team-season) is
+   the output of a fitted decision model** — it depends on the fitted
+   perceptual noise, the posterior challenge-success probabilities, the
+   opportunity distribution, the 2026 run-expectancy table, the half-inning-
+   level continuation value, and the simulation. The point estimate has moved
+   by a run or two across data revisions; the **8–10 run range**, not a
+   single number, is the honest statement.
+
 2026 is the first season with the automated ball-strike challenge system. Each team
 gets two challenges, a **correct** challenge is retained, and rights are lost only
 after **two incorrect** ones — so a challenge is not a resource you spend, it is a
@@ -16,11 +35,20 @@ confidence far below a coin flip, and league behaviour (2.1 challenges per
 team-game at a 54% success rate) does not look like it has been priced that way.
 Solving for the optimal policy — using the same imperfect information players
 actually have — says teams leave roughly **8–10 runs per team-season** on the
-table (the estimate has moved by a run or two as the season has progressed —
-see Limitations).
+table (see claim 2 above and Limitations).
 The mechanism is not volume. **The optimal policy wins a *smaller* share of its
 challenges than teams currently do (~43% vs ~54%) and still nets more runs, because
 the calls it picks are worth more.** Challenge different, not challenge more.
+
+### How this differs from Statcast's "Expected Challenges"
+
+MLB/Statcast publishes an **Expected Challenges** model: given the game
+context, how likely is a player to challenge? That is a **descriptive /
+predictive** question — it models *behaviour*. This project asks the
+**prescriptive** one: given the game state and the probability the call is
+wrong, *should* the team challenge to maximize expected value? One predicts
+what players do; the other prescribes what they should do, and the gap
+between them is the ~8–10 runs.
 
 **The "Should I challenge?" tab in the live app turns this into an actual
 decision tool** — set up any game situation (count, outs, bases, inning,
@@ -41,16 +69,27 @@ lose more often than win.
 | | challenges / team-game | success rate | runs / team-game |
 |---|---|---|---|
 | **Observed 2026** | 2.15 | 53.7% | 0.226 |
-| **Optimal, same information** | 2.90 | 42.5% | 0.277 |
-| Ceiling (perfect information) | 4.83 | 79.7% | 0.624 |
+| **Optimal, same information** | 2.88 | 42.6% | 0.276 |
+| High-precision benchmark (σ = 0.5 in) | 4.81 | 80.0% | 0.623 |
 
-**Decision gap: ~8–10 runs per team-season.** This is the actionable number. It
-depends only on players' measured perceptual noise, not on any assumption about
-tracking technology. The point estimate has drifted between roughly 8 and 10
+The third row is deliberately **not** labelled "perfect information": it still
+carries 0.5 inches of tracking noise (Hawk-Eye's own resolution floor), it
+just removes the human read error. A true perfect-information scenario would
+use the exact pitch location with zero noise.
+
+**Decision gap: ~8–10 runs per team-season.** This is the actionable number
+(the fitted-model estimate; the decision *rule* behind it is arithmetic — see
+the two claims at the top). Unlike the information gap below, it uses only the
+**fitted** perceptual noise and makes **no assumption about how accurate the
+tracking cameras are** — so it does not move with the ceiling-σ assumption. It
+does still depend on the other fitted-model inputs: the 2026 run-expectancy
+table, the empirical (bootstrapped) opportunity distribution, the posterior
+challenge-success probabilities, the half-inning-level continuation value, and
+the policy simulation. The point estimate has drifted between roughly 8 and 10
 runs across data revisions as the season has filled in; the range, not a single
 number, is the honest statement.
 
-The remaining gap to a perfect-information ceiling is **not coachable**, and its
+The remaining gap to the high-precision benchmark is **not coachable**, and its
 size depends entirely on an assumed tracking precision that this data cannot
 measure — we only ever observe Hawk-Eye's own output, never independent ground
 truth. So it is reported as a curve, not a number:
@@ -68,7 +107,7 @@ truth. So it is reported as a curve, not a number:
 | policy | mean stake (runs) | median stake | runs per overturn | success |
 |---|---|---|---|---|
 | observed | 0.215 | 0.142 | 0.196 | 53.7% |
-| optimal | 0.259 | 0.201 | 0.225 | 42.5% |
+| optimal | 0.259 | 0.201 | 0.225 | 42.6% |
 
 Teams are challenging calls that are *easy to win* rather than calls that are
 *worth winning*. A borderline strike three with the bases loaded is worth several
@@ -81,29 +120,33 @@ range.
 
 **Teams** — all 30 have ~140 games of sample, so no filtering needed:
 
+These snapshot tables move as the season fills in; regenerate them from
+`app/data/per_team.parquet` / `app/data/per_batter.parquet` (the app's "Runs
+left on the table" tab has the live version). As of the latest refresh:
+
 | team | actual rate | actual success | optimal rate | optimal success | runs left / season |
 |---|---|---|---|---|---|
-| SD | 2.01/g | 51.2% | 2.94/g | 48.1% | 19.9 |
-| WSH | 2.04/g | 48.8% | 2.99/g | 42.5% | 18.5 |
-| TB | 2.05/g | 53.0% | 2.98/g | 47.0% | 18.4 |
-| STL | 1.69/g | 50.4% | 2.89/g | 39.6% | 13.4 |
-| SEA | 2.02/g | 50.2% | 2.97/g | 45.8% | 13.3 |
+| WSH | 2.08/g | 49.5% | 2.92/g | 39.9% | 18.6 |
+| TB | 2.08/g | 53.5% | 2.82/g | 48.1% | 18.2 |
+| SD | 2.02/g | 51.5% | 2.94/g | 45.9% | 17.6 |
+| STL | 1.71/g | 50.4% | 2.85/g | 44.1% | 16.1 |
+| HOU | 2.36/g | 52.9% | 2.81/g | 43.1% | 13.0 |
 
-**Players** — restricted to `optimal_challenges ≥ 20` (71 of 398 batters clear this
+**Players** — restricted to `optimal_challenges ≥ 20` (89 of 398 batters clear this
 bar) so the list isn't small-sample noise; below it, one lucky or unlucky swing
 of the season shuffles the ranking:
 
 | player | actual challenges | actual success | optimal challenges | optimal success | runs left |
 |---|---|---|---|---|---|
-| Curtis Mead | 10 | 30.0% | 22 | 54.5% | 3.57 |
-| Yandy Díaz | 0 | — | 29 | 51.7% | 3.09 |
-| Mike Trout | 11 | 63.6% | 33 | 54.5% | 3.02 |
-| Steven Kwan | 14 | 50.0% | 34 | 50.0% | 2.51 |
-| Francisco Lindor | 1 | 0.0% | 21 | 47.6% | 2.45 |
+| Ben Williamson | 5 | 60.0% | 22 | 54.5% | 3.45 |
+| Curtis Mead | 10 | 30.0% | 28 | 39.3% | 3.20 |
+| Yandy Díaz | 0 | — | 29 | 62.1% | 3.13 |
+| Matt Chapman | 12 | 33.3% | 30 | 50.0% | 3.12 |
+| Mike Trout | 11 | 63.6% | 37 | 51.4% | 2.72 |
 
-Two of these (Díaz, and to a lesser extent Lindor) barely challenge at all
-in reality — the model isn't saying they challenge badly, it's saying they're
-sitting on a right they almost never use. Full tables (`app/data/per_team.parquet`,
+Some of these (Díaz especially, at zero real challenges) barely challenge at
+all in reality — the model isn't saying they challenge badly, it's saying
+they're sitting on a right they almost never use. Full tables (`app/data/per_team.parquet`,
 `app/data/per_batter.parquet`) are in the app's "Runs left on the table" tab,
 where the minimum-sample threshold is adjustable.
 
@@ -196,8 +239,11 @@ over the heart of the plate — batters succeed 69% of the time there against 49
 for the battery, the opposite of the pattern everywhere else (n=252 and 367,
 not noise). Refitting σ separately per zone region and re-running the whole
 decision model end to end moves the headline decision gap by **+0.74
-runs/team-season** (from 9.1 to 9.8) — real, about 8% of the headline number,
-but not enough to change which policy is better or by roughly how much. Read
+runs/team-season** — real, about 8% of the headline number, but not enough to
+change which policy is better or by roughly how much. (This sensitivity number
+is from a *frozen* run of `scripts/zone_sigma_refit.py`; per the daily-refresh
+notes it is regenerated by hand at season end, so its absolute anchor lags the
+live decision gap by a run or so — only the +0.74 *move* is the point.) Read
 that as: don't trust the pooled model for any single high-middle call, and
 don't treat the headline decision gap as precise to the tenth of a run either
 — but the qualitative story (teams are leaving real runs on the table by
@@ -247,12 +293,28 @@ you use. See `scripts/zone_analysis.py` and `scripts/zone_sigma_refit.py`.
   down monotonically — bases-loaded, two-out run expectancy was 0.814 in 2024,
   0.740 in 2025, 0.711 in 2026 — so a pooled table prices 2026 calls against a
   scoring context that no longer holds. Re-solving the full decision model on
-  the pooled table drops the headline gap from ~8.2 to ~7.0 runs/team-season
-  (≈15%), which is why 2026-only is chosen explicitly rather than by default.
-- **Policy** solved by backward induction over (half-inning × pitch × challenges
-  spent), with the two-incorrect absorption as a boundary condition and extra
-  innings restoring a challenge. Decisions are made on a simulated noisy
-  observation; outcomes are resolved against the true location.
+  the pooled table dropped the headline gap by roughly 15% (from ~8 to ~7
+  runs/team-season) when last checked, which is why 2026-only is chosen
+  explicitly rather than by default.
+- **Policy** solved by backward induction over `V(t, j, k)` (half-inning `t`,
+  challengeable pitch `j` within it, incorrect challenges spent `k`), with the
+  two-incorrect absorption as a boundary condition. Decisions are made on a
+  simulated noisy observation; outcomes are resolved against the true location.
+  - **Extra-inning rule.** A challenge is restored at the start of an extra
+    inning **only for a team that enters it with none left** (`k`: 0→0, 1→1,
+    2→1). An earlier version used `max(k-1, 0)`, which also refunded a team
+    holding one challenge; the fix is centralized in
+    `src/challenge_rules.py::extra_inning_k_transition` and covered by tests.
+    It moves the headline decision gap by about −0.1 runs/team-season (it stays
+    inside the 8–10 band).
+  - **Half-inning-level continuation-value approximation.** The DP solves
+    `V(t, j, k)`, but the option value exported to the app and the calculator
+    is `C(t, k)` — evaluated at the *start* of each half-inning and applied to
+    every opportunity within it, not a distinct `C(t, j, k)` per pitch. Almost
+    all of a token's value comes from future half-innings, so the
+    position-within-inning correction is second order; still, the deployed
+    decision rule is this approximation, not a full per-state lookup. Making
+    `C` fully position-dependent is on the v2 list (`IDEAS.md`).
 
 ### Two premises worth correcting
 
@@ -303,8 +365,16 @@ Both are wrong, and both were measured rather than assumed.
   rounding uncertainty, which flips the in/out call on 2.1% of near-boundary
   pitches and leaves 7.8% genuinely ambiguous
   (`scripts/measured_height_uncertainty.py`).
-- **Runs, not wins.** The model is indifferent to score, so it values a challenge
-  in a blowout the same as one in a tie game.
+- **Runs, not wins (the main limitation).** The objective is expected *runs*
+  (run expectancy), so the model is indifferent to score and inning leverage —
+  it values a challenge in a blowout the same as one in a tie game. A
+  win-probability version would condition on inning, score differential, outs,
+  runners, count, and challenges remaining, and swap ΔRE for ΔWE. The decision
+  arithmetic is already objective-agnostic: `p* = C / (Δ + C)` and the
+  expected-value comparison in `src/challenge_rules.py` take a generic Δ, so
+  the engine could accept ΔWE without structural change — but this repo does
+  **not** ship an unvalidated win-probability model to check that box. It is
+  the top item on the v2 list (`IDEAS.md`).
 - **One partial season** of a brand-new system, so first-year learning
   effects are unmodelled and the policy may be chasing a moving target. The
   numbers on this page are regenerated daily as games are played; the app

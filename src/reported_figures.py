@@ -249,23 +249,23 @@ FIGURES: list[Figure] = [
     Figure(
         "ceil_challenges_per_game",
         lambda: float(_dec_row(_CEIL).challenges_per_team_game),
-        (Occ("README.md", r"Ceiling \(perfect information\)\s*\|\s*([\d.]+)\s*\|"),),
+        (Occ("README.md", r"High-precision benchmark \(σ = 0\.5 in\)\s*\|\s*([\d.]+)\s*\|"),),
         tol=0.3, render=_r(2),
-        why="chart bar; the perfect-information ceiling is the noisiest of the "
+        why="chart bar; the high-precision benchmark is the noisiest of the "
             "three policies",
     ),
     Figure(
         "ceil_success_rate",
         lambda: float(_dec_row(_CEIL).success_rate) * 100,
-        (Occ("README.md", r"Ceiling \(perfect information\)\s*\|[^|]*\|\s*([\d.]+)%"),),
+        (Occ("README.md", r"High-precision benchmark \(σ = 0\.5 in\)\s*\|[^|]*\|\s*([\d.]+)%"),),
         tol=2.0, render=_r(1), unit="pp",
         why="text",
     ),
     Figure(
         "ceil_runs_per_game",
         lambda: float(_dec_row(_CEIL).runs_per_team_game),
-        (Occ("README.md", r"Ceiling \(perfect information\)\s*\|[^|]*\|[^|]*\|\s*([\d.]+)\s*\|"),
-         Occ("docs/writeup.md", r"perfect-information ceiling \(([\d.]+)\)")),
+        (Occ("README.md", r"High-precision benchmark \(σ = 0\.5 in\)\s*\|[^|]*\|[^|]*\|\s*([\d.]+)\s*\|"),
+         Occ("docs/writeup.md", r"high-precision benchmark at sigma = 0\.5 in \(([\d.]+)\)")),
         tol=0.02, render=_r(3),
         why="chart bar resolution",
     ),
@@ -429,9 +429,12 @@ FIGURES: list[Figure] = [
     Figure(
         "cin_z_above_league",
         lambda: float(_app("team_significance").set_index("team").loc["CIN", "z"]),
+        # The app's copy of this figure was made fully data-driven (it renders
+        # whichever team has the largest z and its exact value), so there is no
+        # static prose there to drift. README / writeup still name Cincinnati
+        # and 3.4 sd explicitly and are checked here.
         (Occ("README.md", r"success rate sits ([\d.]+) standard deviations"),
-         Occ("docs/writeup.md", r"Cincinnati, sits ([\d.]+) standard deviations"),
-         Occ("app/streamlit_app.py", r"Cincinnati, is ([\d.]+) standard")),
+         Occ("docs/writeup.md", r"Cincinnati, sits ([\d.]+) standard deviations")),
         tol=0.4, render=_r(1), unit="sd", why="text ('3.4 sd')",
     ),
     Figure(

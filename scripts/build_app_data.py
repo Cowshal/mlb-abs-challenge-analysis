@@ -282,6 +282,50 @@ def main():
     threshold_surface["generated_at"] = generated_at
     threshold_surface.to_parquet(OUT / "threshold_surface.parquet", index=False)
 
+    # ---- 2b. decision-boundary scatter: real opportunities vs. p* = C/(dre+C) ----
+    # The signature chart. x = P(the call was wrong) (geometry read with the
+    # 0.5-in tracking blur, same basis as the case studies); y = runs at stake
+    # if the call flips (ΔRE). Each point is classified against the break-even
+    # p* = C / (ΔRE + C) it actually faced -- C is the option value C(0) for
+    # that pitch's own half-inning (two challenges in hand), the same lookup
+    # the "Should I challenge?" tool uses -- and against what the team did.
+    # The reference boundary CURVE drawn under the scatter uses the
+    # start-of-game C(0) for a single clean line; the caption says so.
+    C_ref = float(ov[ov.t == 1].iloc[0].C_k0)
+    ck0_by_t = ov.set_index("t").C_k0.to_dict()
+    ds = opp.loc[opp.dre > 0, ["inning", "inning_topbot", "dre", "p_success",
+                               "was_challenged", "overturned", "challenger"]].copy()
+    ds["t"] = ((ds.inning - 1) * 2
+               + np.where(ds.inning_topbot == "Bot", 2, 1)).clip(upper=int(ov.t.max()))
+    C_pt = ds.t.map(ck0_by_t).fillna(C_ref).to_numpy()
+    p_star_pt = C_pt / (ds.dre.values + C_pt)
+    ds["above_breakeven"] = ds.p_success.values > p_star_pt
+    ds["category"] = np.where(
+        ds.was_challenged,
+        np.where(ds.above_breakeven, "Challenged — justified",
+                 "Challenged — low value"),
+        np.where(ds.above_breakeven, "Should have challenged", "Correctly held"))
+    # keep every actually-challenged pitch; sample the two large non-challenged
+    # buckets so the parquet stays small and the scatter stays legible.
+    rng_ds = np.random.default_rng(0)
+    parts = [ds[ds.was_challenged]]
+    for cat, cap in (("Should have challenged", 4000), ("Correctly held", 4000)):
+        sub = ds[(~ds.was_challenged) & (ds.category == cat)]
+        if len(sub) > cap:
+            sub = sub.iloc[rng_ds.choice(len(sub), cap, replace=False)]
+        parts.append(sub)
+    scatter = pd.concat(parts, ignore_index=True).drop(columns=["inning", "inning_topbot", "t"])
+    scatter["model_version"] = model_version
+    scatter["generated_at"] = generated_at
+    scatter.to_parquet(OUT / "decision_scatter.parquet", index=False)
+
+    curve = pd.DataFrame({"dre": np.round(np.arange(0.01, 2.01, 0.01), 3)})
+    curve["p_star"] = C_ref / (curve.dre + C_ref)
+    curve["C_ref"] = C_ref
+    curve["model_version"] = model_version
+    curve["generated_at"] = generated_at
+    curve.to_parquet(OUT / "decision_boundary.parquet", index=False)
+
     # ---- 3. per-team runs left on the table ----
     teams = con.execute(f"""
         SELECT DISTINCT game_pk, home_team, away_team

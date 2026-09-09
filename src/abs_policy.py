@@ -1,7 +1,7 @@
 """
 Optimal ABS challenge policy by backward induction.
 
-State: V(t, j, k)
+State solved: V(t, j, k)
     t = half-inning index (1..18 regulation, then extras)
     j = index of the challengeable called pitch within half-inning t
     k = incorrect challenges already spent (0, 1, 2)
@@ -20,17 +20,44 @@ correct challenge is free. That asymmetry is the whole model.
 Boundaries:
     V(t, j, 2) = 0   -- rights exhausted, no future option value (absorption)
     V(T, ., k) = 0   -- game over
-Extra innings restore one challenge: crossing into one maps k -> max(k-1, 0).
+Extra innings restore one challenge only for a team that enters exhausted:
+crossing into one maps k via challenge_rules.extra_inning_k_transition
+(0 -> 0, 1 -> 1, 2 -> 1). A prior version used k -> max(k - 1, 0), which also
+handed a token back to a team sitting on k = 1.
+
+--- What is exported, and the half-inning-level continuation-value approximation
+
+solve_half_inning() does back-induct across the j opportunities inside a
+half-inning correctly, and that is what makes W[t] (the value at the *start*
+of half-inning t, by k) right. But the only continuation value written to
+disk and consumed downstream is C(t, k) = W[t][k] - W[t][k+1] -- the option
+value evaluated at the START of half-inning t. simulate() and the deployed
+"Should I challenge?" tool then apply that same C(t, k) to every opportunity
+within half-inning t, regardless of j, outs, base-out state, or count.
+
+So the deployed decision rule uses a **half-inning-level continuation-value
+approximation**: C varies by half-inning and by challenges spent, not by
+position within the half-inning. This is deliberate -- almost all of an
+option token's value comes from future half-innings, not from the 0-2
+challengeable pitches left in the current one, so C(t, j, k) - C(t, 0, k) is
+second order. It does mean the model is NOT a full V(t, j, k) lookup at
+decision time; describe it as the approximation it is. Making C fully
+position-dependent is tracked in IDEAS.md.
 
 The opportunity sequence is bootstrapped from real half-innings so that the
 number of chances and the joint (p, dre) distribution are both empirical --
 sampled jointly, never independently, since borderline pitches and high-leverage
 situations are correlated.
 """
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from challenge_rules import extra_inning_k_transition
 
 N_REGULATION_HALF_INNINGS = 18
 MAX_HALF_INNINGS = 30  # allow extras out to the 15th
@@ -38,13 +65,15 @@ N_SAMPLES = 4000
 SEED = 17
 
 # Bump this whenever the policy model itself changes (not for data refreshes
-# with the same model). "role_sigma_v1" = role-specific perceptual sigma
-# (batting vs fielding), fit from where players chose to challenge -- the
-# model behind every headline number in the README and writeup. A prior
-# version used one pooled sigma across roles, which the README documents as
-# reversing the catcher-vs-batter finding; that version must never be the one
-# a saved artifact silently reflects.
-MODEL_VERSION = "role_sigma_v1"
+# with the same model). Role-specific perceptual sigma (batting vs fielding),
+# fit from where players chose to challenge -- the model behind every headline
+# number in the README and writeup. A pre-v1 version used one pooled sigma
+# across roles, which the README documents as reversing the catcher-vs-batter
+# finding; that version must never be the one a saved artifact silently reflects.
+#   v1 -> v2 (2026): extra-inning challenge restore corrected from
+#   max(k - 1, 0) to challenge_rules.extra_inning_k_transition (a team entering
+#   an extra inning with one challenge in hand no longer gets a second back).
+MODEL_VERSION = "role_sigma_v2"
 
 
 def _stamp(df, generated_at):
@@ -103,10 +132,11 @@ def solve(pools, q, team_bats_on_even_t=True, n_samples=N_SAMPLES, seed=SEED):
 
     for t in range(MAX_HALF_INNINGS, 0, -1):
         nxt = W[t + 1]
-        # entering an extra inning restores one challenge
+        # entering an extra inning restores one challenge -- but ONLY for a
+        # team that enters exhausted (see challenge_rules.extra_inning_k_transition).
         is_extra_inning_start = t > N_REGULATION_HALF_INNINGS and (t % 2 == 1)
         if is_extra_inning_start:
-            nxt = np.array([nxt[max(k - 1, 0)] for k in range(3)])
+            nxt = np.array([nxt[extra_inning_k_transition(k)] for k in range(3)])
 
         bats = (t % 2 == 0) if team_bats_on_even_t else (t % 2 == 1)
         pool = pools["batting"] if bats else pools["fielding"]
@@ -137,7 +167,15 @@ def option_values(W):
 
 
 def threshold(C, dre):
-    """Minimum success probability that justifies challenging: C / (dre + C)."""
+    """Minimum success probability that justifies challenging: C / (dre + C).
+
+    Vectorized form of challenge_rules.break_even_probability(dre, C): takes
+    (C, dre) positionally and accepts a numpy-array `dre` (used to plot the
+    break-even curve). break_even_probability is the scalar decision helper
+    with a degenerate-input guard; this stays a plain division so it stays
+    array-safe. For a scalar, well-posed (dre + C > 0) input the two agree
+    exactly.
+    """
     return C / (dre + C)
 
 
@@ -174,7 +212,7 @@ def simulate(opp, ov, seed=SEED):
         prev_inning = None
         for r in g.itertuples():
             if prev_inning is not None and r.inning > prev_inning and r.inning > 9:
-                k = max(k - 1, 0)  # extra inning restores one challenge
+                k = extra_inning_k_transition(k)  # restore only if entering exhausted
             prev_inning = r.inning
             if k >= 2:
                 continue
@@ -353,7 +391,7 @@ def decomposition(q):
     # main()'s pooled-sigma diagnostic also wrote here, silently overwriting
     # this with a superseded model every run. See MODEL_VERSION above.
     _stamp(ov_ply, generated_at).to_parquet("data/option_values.parquet", index=False)
-    print("saved data/option_values.parquet (role_sigma_v1, canonical)")
+    print(f"saved data/option_values.parquet ({MODEL_VERSION}, canonical)")
     r_ceil, _, _, fires_ceil = run_scenario(opp, HAWKEYE_SIGMA_FT, q,
                                             label=f"ceiling @ sigma={HAWKEYE_SIGMA_FT*12:.1f}in")
     rows.append(r_ceil)

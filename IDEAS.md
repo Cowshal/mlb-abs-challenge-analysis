@@ -13,12 +13,24 @@ decision gap is a floor and the information gap a ceiling.** Letting the cutoff
 vary by count would tighten both bounds. This is the single highest-value
 refinement.
 
-**Win probability instead of run expectancy.** The value function is
+**Win probability instead of run expectancy (top item).** The value function is
 run-denominated, so it is indifferent to score and inning. A challenge in a
 9-run blowout scores identically to one in a tie game, which is right in runs and
 wrong in wins. Swapping the RE surface for a WP surface changes the objective,
-not the machinery — the backward induction and the `p*= C/(ΔRE + C)` threshold
-carry over unchanged.
+not the machinery — the backward induction and the `p* = C / (Δ + C)` threshold
+carry over unchanged, and `src/challenge_rules.py` is already written against a
+generic objective delta Δ (runs today; win-probability later) rather than ΔRE
+specifically. A WP version would condition on inning, score differential, outs,
+runners, count, and challenges remaining. The blocker is having a *validated*
+win-probability model — not the decision engine, which is ready for it.
+
+**Position-dependent continuation value.** Today the option value `C(t, k)` is
+evaluated once per half-inning and reused for every opportunity in it (a
+half-inning-level approximation; see README Method). A cleaner version would
+carry `C(t, j, k)` — or at least condition on outs / opportunities remaining in
+the current half-inning. Second order (most of a token's value is future
+half-innings), but worth doing so the deployed model matches the `V(t, j, k)`
+description exactly rather than approximately.
 
 **Two-player game.** Currently each team's challenge budget is an independent
 single-agent MDP. In reality a team might challenge more freely once the opponent

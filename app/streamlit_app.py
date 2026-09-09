@@ -16,6 +16,8 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from geometry import center_distance_to_zone, ball_edge_distance, HALF_WIDTH, BALL_RADIUS_FT
 from run_expectancy import flip_value
+from challenge_rules import (break_even_probability, expected_challenge_value,
+                             recommend)
 
 DATA = Path(__file__).parent / "data"
 
@@ -32,20 +34,25 @@ st.set_page_config(
 )
 
 # One learned color encoding, used everywhere: gray = what actually happened,
-# blue = what the model recommends, amber = an assumption-dependent ceiling.
+# blue = what the model recommends, amber = an assumption-dependent benchmark.
 COLOR_OBSERVED = "#64748B"
 COLOR_OPTIMAL = "#2563EB"
 COLOR_CEILING = "#F59E0B"
 
+# "High-precision benchmark" is deliberately NOT "perfect information": the
+# scenario still carries 0.5 in of perceptual/tracking noise (Hawk-Eye's own
+# resolution floor), it just removes the human read error. A true
+# perfect-information run would use the exact pitch location with zero noise.
+BENCHMARK_LABEL = "High-precision benchmark (σ = 0.5 in)"
 POLICY_LABELS = {
     "observed 2026": "Observed (2026)",
     "optimal @ player sigma": "Optimal (same information)",
-    "ceiling @ sigma=0.5in": "Ceiling (perfect information)",
+    "ceiling @ sigma=0.5in": BENCHMARK_LABEL,
 }
 POLICY_COLORS = {
     "Observed (2026)": COLOR_OBSERVED,
     "Optimal (same information)": COLOR_OPTIMAL,
-    "Ceiling (perfect information)": COLOR_CEILING,
+    BENCHMARK_LABEL: COLOR_CEILING,
 }
 ROLE_LABELS = {"batting": "Batters", "fielding": "Catchers & pitchers"}
 
@@ -100,6 +107,8 @@ zone_sigma_bootstrap = load("zone_sigma_sensitivity_bootstrap")
 option_values = load("option_values")
 re_2026 = load("re_2026")
 posterior_lookup = load("posterior_lookup")
+decision_scatter = load("decision_scatter")
+decision_boundary = load("decision_boundary")
 cases = load("case_studies")
 miss_by_count = load("endorsed_miss_by_count")
 miss_summary = load("endorsed_miss_summary").iloc[0]
@@ -236,6 +245,16 @@ def p_wrong_given_click(x_ft, z_ft, role, height_ft):
     return float(np.interp(d, o_grid, p_grid))
 
 
+def fmt_pct(p):
+    """Percent for display. Shows '<1%' rather than a misleading '0%' when a
+    break-even rounds to zero (it does in very high-leverage late-game spots)."""
+    if p != p:            # nan
+        return "n/a"
+    if 0 < p < 0.005:
+        return "<1%"
+    return f"{p:.0%}"
+
+
 # ---------------------------------------------------------------- case studies
 def _ord(n):
     return {1: "1st", 2: "2nd", 3: "3rd"}.get(int(n), f"{int(n)}th")
@@ -299,44 +318,78 @@ try:
     # ---------------------------------------------------------------- intro panel
     obs, ply, ceil = (dec.runs_per_team_game.iloc[i] for i in (0, 1, 2))
     decision_gap = (ply - obs) * 162
+    obs_rate = dec.success_rate.iloc[0]
+    opt_rate = dec.success_rate.iloc[1]
+    obs_cpg = dec.challenges_per_team_game.iloc[0]
+    opt_cpg = dec.challenges_per_team_game.iloc[1]
 
-    st.info(
-        "**The rule that makes this interesting.** Teams start a game with two "
-        "challenges — but a **correct** challenge is given back immediately. Only "
-        "a **wrong** one costs you. That means a team that keeps winning never "
-        "runs out, which changes the math completely: you don't need to be "
-        "*sure* before challenging, just more often right than the cost of "
-        "occasionally being wrong.\n\n"
-        "**What this page shows.** In 2026, MLB let players challenge close "
-        "ball-and-strike calls, using the same tracking system that draws the "
-        "strike zone on TV. This page compares how players actually use their "
-        "challenges to how they should, given only what a player can see in the "
-        "moment — and finds teams are leaving **about nine runs a season** on the "
-        "table, not by challenging too rarely, but by challenging the wrong pitches."
+    st.markdown(
+        f"""
+        <div style="font-size:2.5rem; font-weight:800; line-height:1.12; margin-top:0.2rem;">
+            MLB teams are challenging the wrong pitches.
+        </div>
+        <div style="font-size:1.15rem; color:#475569; margin-top:0.5rem; margin-bottom:0.4rem;">
+            Teams currently win about <b>{obs_rate:.0%}</b> of their ABS challenges.
+            A value-maximizing policy wins only about <b>{opt_rate:.0%}</b> —
+            and still leaves teams better off by roughly
+            <b>{decision_gap:.0f} runs per team-season</b>.
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("Observed (per team-season)", f"{obs*162:.0f} runs",
-              help="Runs actually gained through successful challenges in 2026.")
-    c2.metric("Optimal (per team-season)", f"{ply*162:.0f} runs",
-              help="Optimal policy played with the perceptual noise players actually have.")
-    c3.metric("Decision gap (per team-season)", f"+{decision_gap:.0f} runs",
-              help="The actionable number: better decisions, identical information.")
+    c1.metric("Observed challenges / game", f"{obs_cpg:.1f}",
+              help="Attempts per team per game in 2026. Already above the "
+                   "two-challenge allotment, because a correct challenge is "
+                   "returned.")
+    c2.metric("Optimal challenges / game", f"{opt_cpg:.1f}",
+              delta=f"{opt_cpg - obs_cpg:+.1f} vs. observed",
+              help="What a value-maximizing policy attempts, using the same "
+                   "in-the-moment information players actually have.")
+    c3.metric("Value available", f"+{decision_gap:.0f} runs / team-season",
+              help="Runs a team can capture by changing which pitches it "
+                   "challenges — not by challenging more. Output of the fitted "
+                   "decision model; see the Decomposition tab.")
+
+    st.warning(
+        f"**A lower success rate can produce more value.** A **{opt_rate:.0%}** "
+        f"challenge strategy outperforms today's **{obs_rate:.0%}** one because "
+        f"the calls it picks are worth more runs. A **correct** challenge is "
+        f"returned, so only a *wrong* one costs anything — which puts the "
+        f"break-even confidence far below a coin flip and makes *leverage*, not "
+        f"*certainty*, the thing to optimize. **Challenge accuracy is not "
+        f"challenge value.**"
+    )
 
     st.caption(
-        f"**Which parts of this rest on statistics, and which don't.** The "
-        f"headline — because a **correct** challenge is returned, the break-even "
-        f"confidence to challenge sits well below 50%, so teams gain by "
-        f"challenging on *leverage* rather than *certainty*, worth about "
-        f"**+{decision_gap:.0f} runs a team a season** — is arithmetic from the "
-        f"challenge rules and run expectancy. It is not a hypothesis test and "
-        f"does not hinge on any correlation clearing a significance threshold. "
-        f"The separate question of whether challenge *accuracy* is a repeatable "
-        f"team or player skill lives in the **Runs left on the table** tab, and "
-        f"every statistic there is labeled with how much weight it can bear — a "
-        f"confidence interval that crosses zero on one of those supporting "
-        f"checks does not touch the number above."
+        f"**Jump to:** the **Real games from 2026** tab for named at-bats · "
+        f"the **Should I challenge?** tab for the live calculator · "
+        f"the **Decomposition** tab for how the {decision_gap:.0f}-run figure "
+        f"is built."
     )
+
+    with st.expander("Which parts of this rest on statistics, and which don't"):
+        st.markdown(
+            f"- **The decision rule is arithmetic.** Because a correct challenge "
+            f"is returned, the break-even confidence to challenge is "
+            f"p\\* = C / (ΔRE + C), which follows directly from the challenge "
+            f"rules and run expectancy. It is not a hypothesis test and does not "
+            f"depend on any correlation clearing a significance threshold.\n"
+            f"- **The ~{decision_gap:.0f}-run figure is the output of a fitted "
+            f"decision model.** Its magnitude depends on modeling inputs — the "
+            f"fitted perceptual noise, the posterior challenge-success "
+            f"probabilities, the 2026 run-expectancy table, the empirical "
+            f"opportunity distribution, and the half-inning-level continuation "
+            f"value. The point estimate has moved by a run or two across data "
+            f"refreshes; treat it as an **8–10 run** range, not a precise "
+            f"number.\n"
+            f"- **The team-vs-player skill question is separate.** It lives in "
+            f"the **Runs left on the table** tab, and every statistic there is "
+            f"labeled with how much weight it can bear. A confidence interval "
+            f"that crosses zero on one of those supporting checks does not touch "
+            f"the decision gap above."
+        )
 
     tab1, tab_games, tab2, tab3 = st.tabs(
         ["Decomposition", "Real games from 2026", "Should I challenge?",
@@ -371,6 +424,71 @@ try:
         )
         st.divider()
 
+        # -------------------------------------------------- signature viz
+        st.subheader("The whole decision rule, in one picture")
+        st.markdown(
+            "Every point is a real 2026 called pitch. **Left–right:** how likely "
+            "the call was wrong. **Up–down:** how many runs ride on it (ΔRE). "
+            "The dashed line is the break-even **p\\* = C / (ΔRE + C)** — "
+            "challenge above it, hold below it. Notice the shape: when the "
+            "stakes are high (top of the chart) a call only ~20–30% likely "
+            "wrong is already worth challenging; when the stakes are tiny "
+            "(bottom) even a near-certain miss isn't. **Low confidence + huge "
+            "stakes beats high confidence + nothing at stake.**"
+        )
+        CAT_COLORS = {
+            "Challenged — justified": COLOR_OPTIMAL,
+            "Challenged — low value": "#DC2626",
+            "Should have challenged": COLOR_CEILING,
+            "Correctly held": "#CBD5E1",
+        }
+        _ch = decision_scatter[decision_scatter.was_challenged]
+        _low_value_pct = (_ch.category == "Challenged — low value").mean() * 100
+        _y_max = 1.5
+        dsc = decision_scatter[decision_scatter.dre <= _y_max].copy()
+        _bnd = decision_boundary[(decision_boundary.p_star <= 0.95)
+                                 & (decision_boundary.dre <= _y_max)]
+        boundary_line = alt.Chart(_bnd).mark_line(
+            color="#0F172A", strokeDash=[6, 4], size=2).encode(
+            x=alt.X("p_star:Q", title="P(the call was wrong)",
+                    scale=alt.Scale(domain=[0, 1]), axis=alt.Axis(format="%")),
+            y=alt.Y("dre:Q", title="Runs at stake if the call flips (ΔRE)",
+                    scale=alt.Scale(domain=[0, _y_max])))
+        pts = alt.Chart(dsc).mark_circle(opacity=0.45).encode(
+            x=alt.X("p_success:Q", scale=alt.Scale(domain=[0, 1])),
+            y=alt.Y("dre:Q", scale=alt.Scale(domain=[0, _y_max])),
+            size=alt.Size("was_challenged:N", scale=alt.Scale(
+                domain=[True, False], range=[38, 14]), legend=None),
+            color=alt.Color("category:N", scale=alt.Scale(
+                domain=list(CAT_COLORS), range=list(CAT_COLORS.values())),
+                legend=alt.Legend(title=None, orient="top", columns=2)),
+            tooltip=[alt.Tooltip("category:N", title="Class"),
+                     alt.Tooltip("p_success:Q", title="P(wrong)", format=".0%"),
+                     alt.Tooltip("dre:Q", title="ΔRE (runs)", format=".2f"),
+                     alt.Tooltip("challenger:N", title="Could challenge"),
+                     alt.Tooltip("was_challenged:N", title="Challenged?"),
+                     alt.Tooltip("overturned:N", title="Overturned?")],
+        )
+        st.altair_chart((pts + boundary_line).properties(height=430),
+                        width="stretch")
+        st.caption(
+            "Non-challenged pitches are the small dots (a 4,000-point sample "
+            "each of *should have challenged* and *correctly held*, since there "
+            "are hundreds of thousands of routine takes); every actually-"
+            "challenged pitch is a large dot. Each point is classed against the "
+            "break-even it truly faced — C(0) for its own half-inning — while "
+            "the drawn line uses the start-of-game C(0) = "
+            f"{decision_boundary.C_ref.iloc[0]:.3f} runs for one clean "
+            "reference; late-game boundaries sit lower. \"P(wrong)\" is the "
+            "0.5-inch-blur geometry read, the same basis as the case studies. "
+            f"About **{_low_value_pct:.0f}%** of real challenges land below their "
+            "break-even line — *challenged, low value*: won often enough, but "
+            "not on calls worth the risk. A few pitches with ΔRE above "
+            f"{_y_max:g} runs (deep bases-loaded full counts) are off the top "
+            "of this view."
+        )
+        st.divider()
+
         st.subheader("Where the gap actually comes from")
         st.markdown(
             "Teams attempt about **2.1 challenges per game** — already more than "
@@ -390,7 +508,8 @@ try:
             tooltip=["Policy", alt.Tooltip("runs_per_team_game:Q", title="Runs/game", format=".3f"),
                      alt.Tooltip("challenges_per_team_game:Q", title="Attempts/game", format=".2f"),
                      alt.Tooltip("success_rate:Q", title="Success rate", format=".1%")],
-        ).properties(height=190)
+        ).properties(height=190,
+                     title="A lower challenge success rate can produce more value")
         st.altair_chart(chart_dec, width='stretch')
 
         show = dec[["Policy", "challenges_per_team_game", "success_rate", "runs_per_team_game"]].copy()
@@ -413,17 +532,64 @@ try:
             "picks different pitches when it does.*"
         )
 
+        with st.expander("Method note: how the policy is solved, and what \"arithmetic\" means here"):
+            st.markdown(
+                "- **The decision rule is arithmetic.** Challenge when "
+                "P(call was wrong) exceeds **p\\* = C / (ΔRE + C)**, where ΔRE "
+                "is the run swing if the call flips and C is the option value "
+                "of one incorrect-challenge token. Because a correct challenge "
+                "is returned, the cost side carries (1 − p), which is what "
+                "pushes p\\* below 50%. This follows directly from the challenge "
+                "rules and run expectancy — no fitted parameter, no p-value.\n"
+                "- **The magnitude (~8–10 runs/team-season) is a fitted model "
+                "output.** It depends on the fitted perceptual σ, the posterior "
+                "challenge-success probabilities, the 2026 run-expectancy "
+                "table, the empirical opportunity distribution, and the "
+                "simulation. The point estimate has moved by a run or two "
+                "across data refreshes.\n"
+                "- **Continuation value is summarized at the half-inning "
+                "level.** The backward induction solves V over (half-inning t, "
+                "opportunity j within t, challenges spent k), but the option "
+                "value C exported to this app and to the calculator is "
+                "C(t, k) — evaluated at the *start* of each half-inning and "
+                "applied to every opportunity within it, not a distinct "
+                "C(t, j, k) per pitch. Almost all of a token's value comes "
+                "from future half-innings, so the position-within-inning "
+                "correction is second order; still, this is a "
+                "half-inning-level continuation-value approximation, not a full "
+                "per-state lookup. Making C fully position-dependent is on the "
+                "v2 list.\n"
+                "- **Extra-inning rule.** A challenge is restored at the start "
+                "of an extra inning only for a team that enters it with none "
+                "left (k: 0→0, 1→1, 2→1).\n"
+                "- **Not the same question as Statcast's \"Expected "
+                "Challenges.\"** That model is *descriptive* — how likely is a "
+                "player to challenge, given the context? This is *prescriptive* "
+                "— given the state and P(call wrong), *should* the team "
+                "challenge to maximize value? The gap between the two is the "
+                "decision gap."
+            )
+
         st.markdown(
             f"**Decision gap: +{decision_gap:.0f} runs per team-season.** This is the part "
-            "a team can capture by changing policy alone. It does not depend on any "
-            "assumption about tracking precision."
+            "a team can capture by changing policy alone. Unlike the "
+            "information gap below, it uses only the *fitted* perceptual noise "
+            "and makes no assumption about how accurate the tracking cameras "
+            "are. It is still a fitted-model output — its size also reflects "
+            "the 2026 run-expectancy table, the empirical opportunity "
+            "distribution, the half-inning-level continuation value, and the "
+            "simulation — so treat it as an **8–10 run range**; only the "
+            "decision *rule* it rests on is arithmetic."
         )
         st.warning(
-            "The remaining gap to a perfect-information ceiling is **not** coachable, and "
-            "its size depends entirely on an assumed tracking precision that this dataset "
-            "cannot measure — we only ever observe Hawk-Eye's own output (MLB's camera-based "
-            "tracking system, the same one that draws the strike zone on TV), never independent "
-            "ground truth. Shown below as a sensitivity curve rather than a single number."
+            "The remaining gap to the **high-precision benchmark** (σ = 0.5 in — "
+            "not perfect information; it still carries half an inch of tracking "
+            "noise) is **not** coachable, and its size depends entirely on an "
+            "assumed tracking precision that this dataset cannot measure — we "
+            "only ever observe Hawk-Eye's own output (MLB's camera-based tracking "
+            "system, the same one that draws the strike zone on TV), never "
+            "independent ground truth. Shown below as a sensitivity curve rather "
+            "than a single number."
         )
         st.altair_chart(
             alt.Chart(sens).mark_line(point=True, color=COLOR_CEILING, size=3).encode(
@@ -470,10 +636,9 @@ try:
         lr_stat = zone_interaction.lr_stat.iloc[0]
         p_val = zone_interaction.p_value.iloc[0]
         swing_pp = zone_interaction.swing_pp.iloc[0]
-        move = zone_sigma_sensitivity.set_index("label")
-        move_season = (move.loc["optimal @ zone-region sigma (sensitivity)", "decision_gap_vs_observed_per_season"]
-                       - move.loc["optimal @ player sigma (role-only, canonical)",
-                                  "decision_gap_vs_observed_per_season"])
+        move = zone_sigma_sensitivity.set_index("label")["decision_gap_vs_observed_per_season"]
+        move_season = (move.get("optimal @ zone-region sigma (sensitivity)", float("nan"))
+                       - move.get("optimal @ player sigma (role-only, canonical)", float("nan")))
         boot_lo = zone_sigma_bootstrap.move_runs_per_season.quantile(0.025)
         boot_hi = zone_sigma_bootstrap.move_runs_per_season.quantile(0.975)
         st.markdown(
@@ -482,11 +647,11 @@ try:
             f"headline number isn't pinned down by one season of data.** "
             f"Splitting the same challenges into a 3×3 grid (in/middle/away × low/middle/high, "
             f"relative to the batter) and testing whether the role gap in success rate "
-            f"varies by location: it does, well past chance "
-            f"(a likelihood-ratio test — a statistical test for whether a pattern this size "
-            f"could plausibly be chance — puts the odds of that at "
-            f"p {'< 0.0001' if p_val < 0.0001 else f'= {p_val:.4f}'}, essentially never; "
-            f"swing of **{swing_pp:.0f} percentage points** across well-populated regions). "
+            f"varies by location: it does. Under the null of no location interaction, a "
+            f"likelihood-ratio statistic at least this large would be very unlikely "
+            f"(p {'< 0.0001' if p_val < 0.0001 else f'= {p_val:.4f}'}); "
+            f"the success-rate gap swings **{swing_pp:.0f} percentage points** across "
+            f"well-populated regions. "
             f"Refitting σ separately for each of the 9 regions and re-running the full "
             f"decision model moves the headline decision gap by "
             f"**{move_season:+.2f} runs per team-season** on the actual 2026 data — but "
@@ -802,9 +967,12 @@ try:
 
             st.divider()
             st.markdown("##### The cases")
-            st.caption("Where this set sits: " + sub.comparable_desc.iloc[0])
-            for _, row in sub.iterrows():
-                render_case(row, "missed")
+            if len(sub):
+                st.caption("Where this set sits: " + sub.comparable_desc.iloc[0])
+                for _, row in sub.iterrows():
+                    render_case(row, "missed")
+            else:
+                st.info("No model-endorsed missed opportunities in the current data.")
 
         with g2:
             st.markdown(
@@ -831,7 +999,11 @@ try:
             )
             sub = cases[cases.category == "endorsed_win"].sort_values("rank")
             cs = coinflip_summary
-            cin = coinflip_team[coinflip_team.team_abbr == "CIN"].iloc[0]
+            # Whichever team makes the most genuinely-uncertain endorsed
+            # challenges this refresh, and how well it does on them. Data-driven
+            # so a change in the season standings can't break the page.
+            _cf_sorted = coinflip_team.sort_values("cf_attempts", ascending=False)
+            cf_leader = _cf_sorted.iloc[0] if len(_cf_sorted) else None
 
             st.markdown("##### Do the coin-flip wins cluster — or is everyone equally good at them?")
             st.markdown(
@@ -849,14 +1021,17 @@ try:
                 f"routine ones — it reads as a general challenging skill, not a "
                 f"lucky run of 50/50s."
             )
+            _leader_txt = (
+                f" The team that makes the most of these genuinely-uncertain "
+                f"endorsed challenges is **{cf_leader.team_abbr}**, at a "
+                f"**{cf_leader.cf_win_rate:.0%} win rate on "
+                f"{int(cf_leader.cf_attempts)}** of them — the same clubs that "
+                f"show up with individually sharp catchers in the *Runs left on "
+                f"the table* tab." if cf_leader is not None else "")
             st.markdown(
                 f"**{int(cs.top5_overlap)} of the top 5** runs-gained teams "
                 f"({cs.top5_runs_teams}) are also top 5 in coin-flip rate "
-                f"({cs.top5_by_cf_rate_teams}). The club leading both is "
-                f"**Cincinnati** — the same one the catcher analysis singles "
-                f"out for Tyler Stephenson's individual accuracy. Its edge "
-                f"shows up here as a **{cin.cf_win_rate:.0%} win rate on "
-                f"{int(cin.cf_attempts)} coin-flip challenges**. Same finding, "
+                f"({cs.top5_by_cf_rate_teams}).{_leader_txt} Same finding, "
                 f"different angle: a sharp battery lets a team act on calls "
                 f"other teams have to let go."
             )
@@ -887,17 +1062,18 @@ try:
             st.altair_chart((pts + trend + labels).properties(height=320),
                             width='stretch')
 
-            cr = coinflip_role.copy()
-            f_share = cr.loc[cr.challenger == "fielding", "share_of_role_challenges"].iloc[0]
-            b_share = cr.loc[cr.challenger == "batting", "share_of_role_challenges"].iloc[0]
-            st.markdown(
-                f"**By role:** catchers and pitchers make more of them — "
-                f"**{f_share:.0%}** of fielding-side challenges are "
-                f"coin-flip-endorsed versus **{b_share:.0%}** of batting-side "
-                f"ones. Consistent with the vantage-point result elsewhere on "
-                f"this page: reading location from behind the plate lets the "
-                f"battery act on closer calls than a batter can from the side."
-            )
+            cr = coinflip_role.set_index("challenger")["share_of_role_challenges"]
+            f_share = cr.get("fielding")
+            b_share = cr.get("batting")
+            if f_share is not None and b_share is not None:
+                st.markdown(
+                    f"**By role:** catchers and pitchers make more of them — "
+                    f"**{f_share:.0%}** of fielding-side challenges are "
+                    f"coin-flip-endorsed versus **{b_share:.0%}** of batting-side "
+                    f"ones. Consistent with the vantage-point result elsewhere on "
+                    f"this page: reading location from behind the plate lets the "
+                    f"battery act on closer calls than a batter can from the side."
+                )
             st.caption(
                 f"Two caveats. It's the *volume* of good borderline attempts "
                 f"that tracks with run production, not the win rate on them "
@@ -912,9 +1088,12 @@ try:
 
             st.divider()
             st.markdown("##### The cases")
-            st.caption("Where this set sits: " + sub.comparable_desc.iloc[0])
-            for _, row in sub.iterrows():
-                render_case(row, "endorsed_win")
+            if len(sub):
+                st.caption("Where this set sits: " + sub.comparable_desc.iloc[0])
+                for _, row in sub.iterrows():
+                    render_case(row, "endorsed_win")
+            else:
+                st.info("No model-endorsed coin-flip wins in the current data.")
 
         st.divider()
         st.caption(
@@ -1006,7 +1185,7 @@ try:
         else:
             k = int(k_display)
             C = C0 if k == 0 else C1
-            p_star = C / (dre + C)
+            p_star = break_even_probability(dre, C)
 
             st.markdown(
                 "**How this tool decides.** Challenge when your confidence the "
@@ -1118,35 +1297,62 @@ try:
 
             st.divider()
             st.subheader("Recommendation")
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Break-even confidence needed", f"{p_star:.0%}",
-                      help="Challenge iff your confidence the call was wrong exceeds this.")
-            m2.metric("Runs at stake if the call flips (ΔRE)", f"{dre:.3f}")
-            m3.metric(f"Option value risked, C({k})", f"{C:.3f} runs",
-                      help="The run-cost of one incorrect challenge, right now.")
-
             st.caption(
-                f"How that option value changes with challenges remaining: right now "
-                f"(0 used) an incorrect challenge costs **C(0) = {C0:.3f} runs**; if "
-                f"you'd already used one, the same mistake would cost "
-                f"**C(1) = {C1:.3f} runs** — worse, since a second incorrect challenge "
-                f"leaves nothing in reserve for the rest of the game."
+                "This tool optimizes **run expectancy** — the average runs "
+                "scored from here to the end of the half-inning. It does not "
+                "know the score or the inning's win-probability leverage (see "
+                "*Runs, not wins* in the limitations). Everything below is in "
+                "runs."
             )
 
-            challenge = p_conf > p_star
-            if challenge:
+            decision, p_star_chk, ev_net = recommend(p_conf, dre, C, k)
+            ev_cost = (1.0 - p_conf) * C   # expected run cost of firing here
+
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Estimated overturn probability", f"{confidence}%",
+                      help="Your confidence the call was wrong — set by the "
+                           "zone click or the slider.")
+            m2.metric("Run-value swing if overturned (ΔRE)", f"+{dre:.3f}")
+            m3.metric("Break-even probability", fmt_pct(p_star),
+                      help="p* = C / (ΔRE + C). Challenge when your overturn "
+                           "probability exceeds this.")
+            m4, m5, m6 = st.columns(3)
+            m4.metric(f"Challenge opportunity cost, C({k})", f"{C:.3f} runs",
+                      help="Option value of one incorrect-challenge token — "
+                           "what holding it is worth for the rest of the game.")
+            m5.metric("Expected cost if you fire", f"−{ev_cost:.3f} runs",
+                      help="(1 − overturn probability) × C — the chance you're "
+                           "wrong times the token you'd lose.")
+            m6.metric("Expected challenge value", f"{ev_net:+.3f} runs",
+                      help="overturn probability × ΔRE − (1 − overturn "
+                           "probability) × C. Positive → challenging beats "
+                           "holding.")
+
+            st.caption(
+                f"How the opportunity cost changes with challenges remaining: "
+                f"right now (0 used) an incorrect challenge costs "
+                f"**C(0) = {C0:.3f} runs**; if you'd already used one, the same "
+                f"mistake would cost **C(1) = {C1:.3f} runs** — worse, since a "
+                f"second incorrect challenge leaves nothing in reserve."
+            )
+
+            if decision == "CHALLENGE":
                 st.success(
                     f"### CHALLENGE\n"
-                    f"Your **{confidence}%** confidence clears the **{p_star:.0%}** "
-                    f"break-even needed here — this call is worth challenging even "
-                    f"though you're not sure."
+                    f"Expected challenge value **{ev_net:+.3f} runs**. Your "
+                    f"**{confidence}%** read clears the **{fmt_pct(p_star)}** "
+                    f"break-even. Although the call is not certain to be "
+                    f"overturned, the potential run-value swing is large enough "
+                    f"to justify using a challenge here."
                 )
             else:
                 st.warning(
                     f"### HOLD\n"
-                    f"Your **{confidence}%** confidence falls short of the **{p_star:.0%}** "
-                    f"break-even needed here — not worth risking an incorrect challenge "
-                    f"on this call."
+                    f"Expected challenge value **{ev_net:+.3f} runs**. Your "
+                    f"**{confidence}%** read falls short of the **{fmt_pct(p_star)}** "
+                    f"break-even. The call may well be wrong, but preserving the "
+                    f"challenge for a higher-value spot later in the game has "
+                    f"greater expected value than spending it now."
                 )
 
             if picked is not None:
@@ -1323,11 +1529,12 @@ try:
                 "two things move together. Near 0 means no relationship; near "
                 "±1 means one reliably predicts the other. The r = −0.35 above "
                 "is a mild lean, not a strong link.\n"
-                "- **p-value (p)** is the probability you'd see a pattern this "
-                "strong purely by chance, if there were actually nothing going "
-                "on. Small (well under 0.05) means the pattern is probably "
-                "real; p = 0.06 above is right on that edge — leaning real, "
-                "not confirmed.\n"
+                "- **p-value (p)** is the probability of seeing a pattern at "
+                "least this strong *if the null hypothesis were true* (i.e. if "
+                "there were really nothing going on). It is **not** the "
+                "probability that the null is true. Small (well under 0.05) "
+                "means the data are hard to explain by chance alone; p = 0.06 "
+                "above is right on that edge — suggestive, not confirmed.\n"
                 "- **Confidence interval (CI)** is the range the true number "
                 "probably falls in, given how much data went into it. A wide "
                 "CI means the point estimate is shakier than it looks; a CI "
@@ -1376,16 +1583,17 @@ try:
             )
         with col2:
             st.markdown("**But the spread itself is real**")
+            _outlier = team_sig_test.sort_values("z", ascending=False).iloc[0]
             st.markdown(
-                "Simulating 30 league-average teams at each team's real attempt "
-                "count, the *spread* in success rate we actually see is bigger than "
-                "chance alone produces (p = 0.004), and the same is true for runs "
-                "gained (p < 0.0001). One team, Cincinnati, is 3.4 standard "
-                "deviations above the league rate — 3.4 times further from "
-                "average than the typical team-to-team wobble you'd expect "
-                "from randomness alone, which is a lot — still "
-                "borderline-significant (p ≈ 0.02) even after accounting for "
-                "having checked all 30 teams."
+                f"Simulating 30 league-average teams at each team's real attempt "
+                f"count: under that null, the *spread* in success rate at least "
+                f"as large as the one actually observed is rare (p = 0.004), and "
+                f"the same holds for runs gained (p < 0.0001). The strongest "
+                f"single outlier, **{_outlier.team}**, sits about "
+                f"{_outlier.z:.1f} standard deviations above the league rate — "
+                f"well outside the team-to-team wobble that null produces — "
+                f"with a Bonferroni-corrected p ≈ {_outlier.p_bonferroni:.2f} "
+                f"for having checked all 30 teams."
             )
             st.markdown(
                 "*So real variation exists in 2026 — the open question is only "
@@ -1497,30 +1705,31 @@ try:
         def _pct_equiv(rate):
             return (catcher_population.rate < rate).mean() * 100
 
-        _stephenson = top5_catchers[top5_catchers.name == "Tyler Stephenson"].iloc[0]
-        _goodman = top5_catchers[top5_catchers.name == "Hunter Goodman"].iloc[0]
-        _caratini = top5_catchers[top5_catchers.name == "Victor Caratini"].iloc[0]
-        _langeliers = top5_catchers[top5_catchers.name == "Shea Langeliers"].iloc[0]
+        # Data-driven: describe whichever catchers are actually the top-5
+        # teams' primaries this refresh, widest CI first. No hardcoded names.
+        _t5 = top5_catchers.dropna(subset=["ci_lo", "ci_hi"]).copy()
+        if len(_t5):
+            _t5["ci_span_pct"] = [
+                _pct_equiv(r.ci_hi) - _pct_equiv(r.ci_lo) for r in _t5.itertuples()]
+            _t5 = _t5.sort_values("ci_span_pct", ascending=False)
+        _spans = "; ".join(
+            f"{r.name} spans the {_pct_equiv(r.ci_lo):.0f}th–"
+            f"{_pct_equiv(r.ci_hi):.0f}th percentile"
+            for r in _t5.head(3).itertuples()) or "n/a in the current data"
+        _firm = ", ".join(_t5.tail(2).name.tolist()) if len(_t5) >= 2 else "the rest"
         st.markdown(
             f"**How much to trust one catcher's rank:** a primary catcher gets "
             f"roughly 40–160 challenges of his own in a season — enough to see a "
             f"real signal, not enough to pin down a precise number. Converting "
-            f"each catcher's 95% CI back into where it would land in the league "
-            f"distribution: Shea Langeliers's CI alone spans the "
-            f"{_pct_equiv(_langeliers.ci_lo):.0f}th to "
-            f"{_pct_equiv(_langeliers.ci_hi):.0f}th percentile, and Victor "
-            f"Caratini's the {_pct_equiv(_caratini.ci_lo):.0f}th to "
-            f"{_pct_equiv(_caratini.ci_hi):.0f}th — both wide enough to include "
-            f"a below-average catcher. Tyler Stephenson "
-            f"({_pct_equiv(_stephenson.ci_lo):.0f}th–{_pct_equiv(_stephenson.ci_hi):.0f}th) "
-            f"and Hunter Goodman "
-            f"({_pct_equiv(_goodman.ci_lo):.0f}th–{_pct_equiv(_goodman.ci_hi):.0f}th) "
-            f"sit on firmer ground, but even Goodman's low end isn't clearly "
-            f"above average. This fits the player-level split-half reliability "
-            f"above (r ≈ 0.27–0.38, and itself unstable across refreshes): "
-            f"individual accuracy looks like real repeatable signal, but a "
-            f"noisy one — this season's exact ranking of any one catcher would "
-            f"likely move some by next season."
+            f"each top-5 team catcher's 95% CI back into where it would land in "
+            f"the league distribution: {_spans} — several of these are wide "
+            f"enough to include a below-average catcher. {_firm} sit on firmer "
+            f"ground, but even the firmest low end is not always clearly above "
+            f"average. This fits the player-level split-half reliability above "
+            f"(r ≈ 0.27–0.38, and itself unstable across refreshes): individual "
+            f"accuracy looks like real repeatable signal, but a noisy one — this "
+            f"season's exact ranking of any one catcher would likely move some "
+            f"by next season."
         )
 
         st.markdown("**Does a team's quality edge line up with its own catcher's accuracy? — the analysis that pins it to the catcher**")
@@ -1546,6 +1755,11 @@ try:
         st.altair_chart(
             (base_scatter + trend + top5_pts + top5_labels).properties(height=340),
             width='stretch')
+        _q = cc_all[cc_all.top_team].sort_values("quality_ratio", ascending=False)
+        _quality_led = _q[_q.quality_ratio > 1.05]
+        _volume_led = _q[_q.quality_ratio <= 1.05]
+        _ql = ", ".join(f"{r.name} ({r.team})" for r in _quality_led.itertuples()) or "none this refresh"
+        _vl = ", ".join(f"{r.name} ({r.team})" for r in _volume_led.itertuples()) or "none this refresh"
         st.markdown(
             f"Every dot is one of the 30 primary catchers, not just the top 5: x is "
             f"how much of his team's edge is *quality* (success rate, and leverage — "
@@ -1553,15 +1767,14 @@ try:
             f"fixed) rather than volume; y is that same catcher's own "
             f"individual challenge success rate. They're correlated leaguewide "
             f"(r = {qual_r:.2f}, p = {qual_p:.3f}, n = {qual_n} teams) — not just a "
-            f"pattern eyeballed in 5 points. **Cincinnati (CIN) and Colorado (COL)** "
-            f"got to a similar-looking runs-gained rank as **Minnesota (MIN) and "
-            f"Chicago (CWS)**, but by different routes: Tyler Stephenson and Hunter "
-            f"Goodman are individually sharp challengers driving a real quality "
-            f"edge, while Victor Caratini and Drew Romo are average-to-below and "
-            f"their teams' rank instead reflects challenging *more often* — which "
-            f"matters, because a volume edge is a lineup-construction choice a new "
-            f"front office could keep next season, while a quality edge tied to one "
-            f"catcher walks out the door with him in a trade."
+            f"pattern eyeballed in 5 points. Among the current top-5 runs-gained "
+            f"teams, the ones whose edge is mostly **challenge quality** "
+            f"(quality ratio > 1) are: {_ql}. The ones whose edge is mostly "
+            f"**volume** (near-league quality, more attempts): {_vl}. The "
+            f"distinction matters: a volume edge is a lineup-construction choice "
+            f"a new front office could keep next season, while a quality edge "
+            f"tied to one catcher is associated with that individual and would "
+            f"move with him in a trade."
         )
 
         st.markdown(
@@ -1588,12 +1801,19 @@ try:
 
     st.divider()
     st.caption(
-        "Method: run expectancy built from 2024–2026 Statcast (not `delta_run_exp`, which is "
-        "count-based and strips base-out context). ABS zone geometry validated against MLB's "
-        "own `edge_distance` at R² = 1.0000. Policy solved by backward induction over "
-        "(half-inning × pitch × challenges spent). Caveat: the fitted σ absorbs any real "
-        "variation in players' thresholds across counts, which inflates the information gap "
-        "and deflates the decision gap — so the decision gap is a floor."
+        "Method: the live decision model uses a **2026-only** run-expectancy "
+        "table (built from our own Statcast data, not `delta_run_exp`, which is "
+        "count-based and strips base-out context), to price 2026 calls against "
+        "the current run environment; the RE build script also pools 2024–2026 "
+        "for validation against published RE24, and the geometry / measured-"
+        "height work uses 2024–2026 games where a cross-season check helps. ABS "
+        "zone geometry validated against MLB's own `edge_distance` at "
+        "R² = 1.0000. Policy solved by backward induction over (half-inning × "
+        "pitch × challenges spent); the continuation value exported to the app "
+        "is summarized at the half-inning level (see the Decomposition method "
+        "note). Caveat: the fitted σ absorbs any real variation in players' "
+        "thresholds across counts, which inflates the information gap and "
+        "deflates the decision gap — so the decision gap is a floor."
     )
 
     _policy_v = dec.model_version.iloc[0] if "model_version" in dec.columns else "unstamped"

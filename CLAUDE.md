@@ -168,6 +168,18 @@ it is a long-standing convention, not an ABS-era change. Consequences:
 - A CORRECT challenge is retained — it costs nothing
 - Rights are lost after TWO INCORRECT challenges
 - One challenge restored at the start of each extra inning
+  - **CORRECTION (2026, extra-inning-rule fix):** the restore applies ONLY to a
+    team that enters the extra inning with ZERO challenges remaining. A team
+    holding one or two gets nothing. In k-space (k = incorrect spent):
+    0->0, 1->1, 2->1. The code used `max(k-1, 0)` everywhere, which also
+    refunded a team at k=1 -- fixed and centralized in
+    `src/challenge_rules.py::extra_inning_k_transition` (also used by
+    `src/abs_policy.py` solve + simulate and `scripts/build_case_studies.py`),
+    with regression tests in `tests/test_abs_policy.py` /
+    `tests/test_challenge_rules.py`. Headline impact: decision gap
+    +8.2 -> +8.1 runs/team-season (still inside the 8-10 band); optimal rate
+    2.90 -> 2.88/game, optimal success 42.5% -> 42.6%. MODEL_VERSION bumped
+    role_sigma_v1 -> role_sigma_v2.
 - Only batters, pitchers, and catchers may initiate
 - **Not permitted when a position player is pitching** — exclude these PAs from
   the challengeable denominator
@@ -481,10 +493,16 @@ categories:
                        break-even was tiny. Shows the model isn't only critical.
 
 **Challenge-token reconstruction.** For each (game, side), walk that side's
-actual challenges in order; a pitch's `k_used` = incorrect challenges spent
-before it, minus `max(0, inning-9)` for extra-inning restores (matches
-`abs_policy.py`'s `k -> max(k-1, 0)` per extra inning). `challenges_remaining =
-2 - k_used`. For the exhausted state (`k_used >= 2`) the endorsement is
+actual incorrect challenges AND the extra-inning boundaries in chronological
+order, applying `challenge_rules.extra_inning_k_transition` (0->0, 1->1, 2->1)
+at each extra-inning start and `min(k+1, 2)` at each incorrect challenge; the
+result is `k_used` just before the pitch. `challenges_remaining = 2 - k_used`.
+  - **CORRECTION (extra-inning-rule fix):** this previously did
+    `k_used = raw_incorrect - max(0, inning - 9)`, matching `abs_policy.py`'s
+    old `k -> max(k-1, 0)`. Both were wrong (refunded a non-exhausted team,
+    and once per inning rather than once per inning entered exhausted) and are
+    now fixed via the shared helper.
+For the exhausted state (`k_used >= 2`) the endorsement is
 evaluated at `k_eval = min(k_used, 1)` -- i.e. "would the optimal policy have
 wanted this challenge if one were available" -- which is the quantity category 2
 needs.
