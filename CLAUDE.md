@@ -39,6 +39,9 @@ as much as the analysis being correct.
 - [ ] Step 1.5: findings + charts
 - [x] Step 1.6: real-game case studies tab (see "Case studies" section below)
 - [ ] Part 4: deploy
+- [x] Automated daily refresh: `scripts/refresh_all.sh` orchestrator +
+      `.github/workflows/refresh.yml` (08:00 PT cron) + prose-drift gate
+      (`src/reported_figures.py`). See "Automated refresh pipeline" section below.
 
 Update this checklist as things land.
 
@@ -553,3 +556,72 @@ failure, not a data problem, and it drove a site-wide pass (2026-09-05):
   they are supporting/robustness checks and the headline decision gap does
   not move with them. If you add a new CI to the site, add the "what this
   means for the conclusion" sentence next to it in the same edit.
+
+## Automated refresh pipeline
+
+Added 2026-09-09. The season is live, so the data changes nightly; this keeps
+the deployed app and the prose around it in sync without manual re-runs.
+
+**`scripts/refresh_all.sh`** -- the single entry point, run identically
+locally and in CI. Runs every pipeline step in dependency order (see the
+script header for the list), then `build_app_data.py`, then
+`build_reported_figures.py`. Does NOT touch git; the workflow wraps it with
+checkout/commit/push. `--skip-ingest` reuses the cached Statcast pull for
+local iteration.
+
+**`.github/workflows/refresh.yml`** -- `cron: "0 15 * * *"` (08:00 PT during
+the season). On success, commits `app/data/` (only -- never README/writeup/app
+source) back to `main` with `[skip ci]`, which is what makes Streamlit Cloud
+redeploy. On failure, opens/updates a `pipeline-drift` GitHub issue instead of
+pushing. First run pulls 3 full Statcast seasons cold (~90+ min, timeout is
+150); 2024/25 parquet is then cached with a static key so steady-state runs
+are ~15-25 min.
+
+**Idempotency changes made for this:**
+- `src/ingest.py` -- 2024/25 pull-once-and-skip unchanged; 2026 now sets the
+  end date to yesterday (clamped to `LIVE_SEASON_END` 2026-09-28) and re-pulls
+  a trailing `TRAILING_REPULL_DAYS` (4) window every run, splicing it over the
+  cached parquet by `game_date`, since Statcast revises recent games. Goes to
+  a true no-op once the season + revision window has passed.
+- `scripts/collect_abs_challenges.py` -- `END_DATE` is now `_default_end_date()`
+  (yesterday, clamped), overridable with `ABS_END_DATE=YYYY-MM-DD` for a
+  reproducible historical pull. `START_DATE` and the `verify_ball_radius.py`
+  window (2026-04-01..05-15, early-season height back-out) are unchanged.
+
+**FROZEN, not re-run by the pipeline:** `scripts/zone_sigma_refit.py` and
+`scripts/zone_sigma_bootstrap.py` (that sensitivity number is noise-dominated
+at one season -- see Limitations; the bootstrap is 150 DP re-solves). Their
+committed `app/data/` outputs are the source of truth; `refresh_all.sh` seeds
+them back into `data/` so the downstream copy + provenance checks pass. The
+`zone_sigma_gap_move_runs` / bootstrap-CI figures in `reported_figures.py`
+carry a `note` saying so. Re-run and commit by hand when the season ends.
+
+**`src/reported_figures.py` -- the prose-drift gate.** A manifest (`FIGURES`)
+of every data-derived statistic that appears in README.md / docs/writeup.md /
+app copy: each `Figure` has a `compute` fn (reads the parquet), a `render`
+fn, an absolute `tol` in written units, and one `Occ(path, regex)` per place
+it's written (regex has exactly one capture group = the number).
+`build_reported_figures.py` writes `data/reported_figures.json` (+ `app/data/`
+for the footer's "Data through" line) and then `check()`s every figure
+against the prose -- drift past `tol`, or a missing anchor (prose reworded),
+fails the build and the workflow files the issue. 56 figures as of the
+initial commit; 54/56 matched current prose on first run, the 2 misses were a
+genuinely stale README ceiling-sensitivity table (fixed in the same commit).
+
+**Adding a figure:** append a `Figure(...)` to `FIGURES`. **Deliberately NOT
+tracked** (see the comment block at the bottom of the module): physical/rule
+constants, rounded restatements of a tracked figure, and the per-row
+snapshot team/player tables in README. Two figures are TODO pending a
+one-row summary parquet from `team_skill_test.py` / `zone_analysis.py`: the
+cross-team spread-test p-values (0.004 / <0.0001) and the 69%/49%
+high-middle zone cells.
+
+**Set `tol` by "would a reader be misled", not the noise floor** -- this runs
+every night. Raw counts (challenges, games) will eventually drift past
+tolerance near season's end and need a one-line prose edit; that's the gate
+working, not a bug.
+
+**2027:** the workflow is left enabled so it resumes automatically. Bump the
+season-date constants in `ingest.py` + `collect_abs_challenges.py`, un-freeze
+the zone-sigma scripts, and re-check every `tol` / `Occ` regex in
+`reported_figures.py` against whatever the prose says by then.
