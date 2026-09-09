@@ -240,8 +240,15 @@ you use. See `scripts/zone_analysis.py` and `scripts/zone_sigma_refit.py`.
   real challenges. Listed heights turn out to be true heights rounded to the
   nearest inch (KS test against Uniform(±0.5 in): p = 0.49). Two independent
   derivations — from top-edge and bottom-edge challenges — agree to 0.012 in.
-- **Run expectancy** built from 2024–2026 Statcast and validated against published
-  RE24 (bases empty / 0 out = 0.485; loaded / 0 out = 2.359; loaded / 2 out = 0.755).
+- **Run expectancy** built from **2026 Statcast alone**, not pooled across
+  seasons, and validated against published RE24 (bases empty / 0 out = 0.485;
+  loaded / 0 out = 2.359; loaded / 2 out = 0.755). Pooling 2024–2026 roughly
+  triples the sample behind each state, but the run environment has drifted
+  down monotonically — bases-loaded, two-out run expectancy was 0.814 in 2024,
+  0.740 in 2025, 0.711 in 2026 — so a pooled table prices 2026 calls against a
+  scoring context that no longer holds. Re-solving the full decision model on
+  the pooled table drops the headline gap from ~8.2 to ~7.0 runs/team-season
+  (≈15%), which is why 2026-only is chosen explicitly rather than by default.
 - **Policy** solved by backward induction over (half-inning × pitch × challenges
   spent), with the two-incorrect absorption as a boundary condition and extra
   innings restoring a challenge. Decisions are made on a simulated noisy
@@ -276,11 +283,21 @@ Both are wrong, and both were measured rather than assumed.
 
 ## Limitations
 
-- **The 9-run decision gap is a floor.** The fitted σ absorbs any real variation
+- **The decision gap is a floor.** The fitted σ absorbs any real variation
   in players' thresholds across counts and leverage, since varying thresholds look
   like noise to this estimator. That inflates the information gap and deflates the
   decision gap. Letting the cutoff vary by count would tighten both bounds.
 - **The ceiling is an assumption, not a measurement.** Hence the sensitivity curve.
+- **Sparse run-expectancy cells — checked, and they don't matter.** The
+  2026-only RE table has 288 count × base-out states; the sparsest is seen 9
+  times and ~7% have fewer than 100 observations. But those cells are
+  structurally near-unreachable by a challenge (a 3-0 count with a runner on
+  third, nobody out, and so on — nobody challenges a 3-0 count): of the ~9,300
+  real challenges, **0.3%** land in a cell with < 100 observations, carrying
+  **0.6%** of the total run value at stake. Shrinking the thin cells toward a
+  smoother model would, at that weight, change nothing measurable, so it was
+  not added — knowing the estimate doesn't lean on those cells is the stronger
+  statement.
 - **Listed vs. measured height.** 201 batters have a measured height backed out
   from ≥3 challenges; the rest fall back to listed height carrying ±0.5 in of
   rounding uncertainty, which flips the in/out call on 2.1% of near-boundary
@@ -530,6 +547,11 @@ longer be found, **the pipeline fails and the workflow opens a
 `pipeline-drift` issue naming each figure, its location, and its new value**,
 rather than pushing an internally inconsistent commit. The app footer shows
 the data-through date from the same JSON.
+
+**If the footer's "Data through" date falls behind the latest daily-refresh
+commit, the Streamlit Cloud deploy is stuck** (it occasionally is — not a
+Python or dependency problem; Cloud runs 3.14 and the pins are fine). A
+manual **Reboot app** from the Streamlit Cloud dashboard clears it.
 
 Physical constants (17-inch plate, the ball radius, the 53.5% / 27% zone
 edges), rounded restatements of a tracked figure, and the per-team / per-player

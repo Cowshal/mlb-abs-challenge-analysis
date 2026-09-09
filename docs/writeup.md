@@ -138,6 +138,29 @@ certain, north of 68%. Those two numbers are more than four times apart. A
 player using one fixed gut-feel threshold across every situation is, by
 construction, wrong most of the time.
 
+One methodological choice sits underneath all of those run values. The
+run-expectancy table is built from the 2026 season alone, not pooled across
+several years. Pooling 2024–2026 would roughly triple the sample behind each
+state — tempting, given how thin some states are — but the run environment
+has drifted down monotonically. A bases-loaded, two-out situation was worth
+0.814 runs in 2024, 0.740 in 2025, and 0.711 in 2026; a pooled table would
+price a 2026 call against a scoring context that no longer exists. Re-solving
+the entire decision model on the pooled table drops the headline gap from 8.2
+to 7.0 runs per team-season — a 15% difference from a choice that's easy to
+make without noticing. So it's made deliberately.
+
+The price of using one season is thin cells. The table has 288 states — four
+ball counts, three strike counts, three out states, eight base configurations
+— and the sparsest is observed just 9 times; about 7% have fewer than 100
+observations. But those cells are almost unreachable by a challenge. They're
+states like a 3-0 count with a runner on third and nobody out, and nobody
+challenges a 3-0 count. Of the roughly 9,300 real challenges, 0.3% fall in a
+cell with fewer than 100 observations, and they account for 0.6% of the total
+run value at stake. I checked whether shrinking those cells toward a smoother
+model would move anything; with that little weight on them, it wouldn't, so I
+left it out. Knowing the answer doesn't depend on the sparse cells is worth
+more than smoothing them.
+
 The gap isn't spread evenly across the league. Some teams are much closer to
 optimal than others, and the ones farthest away have the most to gain from
 changing nothing but which pitches they challenge.
