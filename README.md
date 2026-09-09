@@ -6,7 +6,7 @@
 
 [![refresh data](https://github.com/Cowshal/mlb-abs-challenge-analysis/actions/workflows/refresh.yml/badge.svg)](https://github.com/Cowshal/mlb-abs-challenge-analysis/actions/workflows/refresh.yml)
 
-**Optimal ABS challenge policy vs. observed behaviour — 2026 MLB season, 9,032 challenges across 2,107 games.**
+**Optimal ABS challenge policy vs. observed behaviour — 2026 MLB season, 9,000+ challenges across 2,100+ games** (the season is live; the app footer shows the data-through date).
 
 2026 is the first season with the automated ball-strike challenge system. Each team
 gets two challenges, a **correct** challenge is retained, and rights are lost only
@@ -15,9 +15,11 @@ resource you spend *only when you're wrong*. That asymmetry puts the break-even
 confidence far below a coin flip, and league behaviour (2.1 challenges per
 team-game at a 54% success rate) does not look like it has been priced that way.
 Solving for the optimal policy — using the same imperfect information players
-actually have — says teams leave roughly **9 runs per team-season** on the table.
+actually have — says teams leave roughly **8–10 runs per team-season** on the
+table (the estimate has moved by a run or two as the season has progressed —
+see Limitations).
 The mechanism is not volume. **The optimal policy wins a *smaller* share of its
-challenges than teams currently do (43% vs 54%) and still nets more runs, because
+challenges than teams currently do (~43% vs ~54%) and still nets more runs, because
 the calls it picks are worth more.** Challenge different, not challenge more.
 
 **The "Should I challenge?" tab in the live app turns this into an actual
@@ -38,13 +40,15 @@ lose more often than win.
 
 | | challenges / team-game | success rate | runs / team-game |
 |---|---|---|---|
-| **Observed 2026** | 2.14 | 53.7% | 0.226 |
-| **Optimal, same information** | 2.90 | 43.0% | 0.282 |
-| Ceiling (perfect information) | 4.76 | 79.9% | 0.623 |
+| **Observed 2026** | 2.15 | 53.7% | 0.226 |
+| **Optimal, same information** | 2.90 | 42.5% | 0.277 |
+| Ceiling (perfect information) | 4.83 | 79.7% | 0.624 |
 
-**Decision gap: ~9 runs per team-season.** This is the actionable number. It
+**Decision gap: ~8–10 runs per team-season.** This is the actionable number. It
 depends only on players' measured perceptual noise, not on any assumption about
-tracking technology.
+tracking technology. The point estimate has drifted between roughly 8 and 10
+runs across data revisions as the season has filled in; the range, not a single
+number, is the honest statement.
 
 The remaining gap to a perfect-information ceiling is **not coachable**, and its
 size depends entirely on an assumed tracking precision that this data cannot
@@ -53,18 +57,18 @@ truth. So it is reported as a curve, not a number:
 
 | assumed ceiling σ | information gap (runs / team-season) |
 |---|---|
-| 0.10 in | 74.2 |
-| 0.25 in | 67.7 |
-| 0.50 in | 55.2 |
-| 0.75 in | 42.8 |
-| 1.00 in | 32.0 |
+| 0.10 in | 75 |
+| 0.25 in | 69 |
+| 0.50 in | 56 |
+| 0.75 in | 44 |
+| 1.00 in | 33 |
 
 ### The mechanism: leverage, not volume
 
 | policy | mean stake (runs) | median stake | runs per overturn | success |
 |---|---|---|---|---|
-| observed | 0.216 | 0.146 | 0.196 | 53.7% |
-| optimal | 0.259 | 0.201 | 0.226 | 43.0% |
+| observed | 0.215 | 0.142 | 0.196 | 53.7% |
+| optimal | 0.259 | 0.201 | 0.225 | 42.5% |
 
 Teams are challenging calls that are *easy to win* rather than calls that are
 *worth winning*. A borderline strike three with the bases loaded is worth several
@@ -117,31 +121,38 @@ per-team ratios (attempts/success/leverage, against league baseline) are in
 
 **Read the team table as a 2026 snapshot, not a proven skill ranking.**
 Splitting each team's season in half and correlating first-half success rate
-against second-half gives r = 0.22 across all 30 teams, 95% CI [-0.16, 0.54]
-— too weak and too uncertain to call challenge accuracy a stable, predictable
-team trait. At the same time, the actual spread in success rate and runs
-gained across teams is bigger than 30 teams drawing from the league rate at
-their own volume would produce by pure chance (p = 0.004 and p < 0.0001,
-respectively), and Cincinnati's success rate sits 3.4 standard deviations
-above the league mean — a result that survives correcting for having checked
-all 30 teams (Bonferroni-adjusted p ≈ 0.02). Put plainly: there is more real
-variation here than luck alone explains, but the team-level split-half test
-can't confirm it's a stable team trait.
+against second-half gives **r ≈ 0.28** across all 30 teams (95% CI
+[−0.09, 0.58], p = 0.13). The interval contains zero, so this on its own can't
+call challenge accuracy a stable team trait. What *does* hold up: the spread
+in success rate and runs gained across teams is bigger than 30 teams drawing
+from the league rate at their own volume would produce by chance (p = 0.004
+and p < 0.0001), and Cincinnati's success rate sits 3.4 standard deviations
+above the league mean, surviving a correction for having checked all 30 teams
+(Bonferroni-adjusted p ≈ 0.02).
 
-**That's because it isn't a team-level trait — it's a personnel one.**
-Rosters change mid-season, so a real trait belonging to specific players can
-still fail a team-level reliability check if those players move around.
-Re-running split-half reliability on individual challengers instead of teams
-gives r = 0.32 (p < 0.001, n = 104 players with ≥8 challenges/half) to
-r = 0.38 (p < 0.001, n = 82 with ≥10/half) — both clearly above the
-team-level 0.22 and clear of zero, unlike it. It lines up with *why* teams
-lead: Cincinnati's quality-driven edge comes with a primary catcher (Tyler
-Stephenson) who individually ranks in the 85th percentile of all catchers
-leaguewide on his own challenge success; Minnesota's volume-driven edge comes
-with a merely average one. Read the team table as **who was on the roster in
-2026**, not as a proven front-office skill ranking — see
-`scripts/team_skill_test.py` and the "Is this a repeatable team skill?"
-section in the app's "Runs left on the table" tab for the full walkthrough.
+**Is it a team trait or a personnel one?** Rosters change mid-season, so a
+real player-level skill can fail a team-level reliability check. Re-running
+the split-half test on individual challengers: at **≥8 challenges per half**
+the individual correlation is **r ≈ 0.27** (n ≈ 108, 95% CI [0.09, 0.44]);
+at **≥10** it is **r ≈ 0.38** (n ≈ 84, 95% CI [0.19, 0.55]). Both clear zero,
+but only the ≥10 cut is unambiguous — at ≥8 the player estimate now sits
+essentially on top of the team-level one.
+
+**This contrast is fragile.** Five days of additional games moved *both*
+numbers by about 0.05, toward each other (team 0.22 → 0.28, player-≥8
+0.32 → 0.27). Split-half reliability is simply not well estimated with one
+partial season at n = 30 teams or n ≈ 108 players, and the gap between the
+two levels should not be leaned on. The personnel reading rests instead on
+two things that have been **stable across every pipeline refresh**: the
+catcher-quality correlation (**r = 0.48, p = 0.007** — a team's challenge-
+*quality* edge tracks its own primary catcher's individual accuracy) and the
+role-σ effect replicating in **28 of 30 teams**. Cincinnati's quality-driven
+lead comes with a primary catcher (Tyler Stephenson) around the 85th
+percentile of all catchers on his own challenge success; Minnesota's
+volume-driven lead comes with a middle-of-the-pack one. Read the team table
+as **who was on the roster in 2026**, not a proven front-office skill
+ranking — see `scripts/team_skill_test.py` and the "Whose skill is it?"
+section in the app's "Runs left on the table" tab.
 
 ## Catchers should challenge more than batters — not fewer
 
@@ -198,20 +209,20 @@ you use. See `scripts/zone_analysis.py` and `scripts/zone_sigma_refit.py`.
 - **Zone geometry.** ABS applies the "any part of the ball over the zone" rule,
   so the boundary is the rectangle inflated by a ball radius, not the rectangle
   itself. Restricted to a rigorously defined borderline band (within one ball
-  radius of the centre-based boundary, n=4,597 — half of all 9,071 season
-  challenges — this is the raw challenge count, distinct from the 9,032
-  *opportunities* the decision model uses after filtering), measuring from
-  the ball's centre instead of its edge disagrees with MLB's actual ruling on
-  **67.2%** of them — worse than a coin flip. Across all 9,071 challenges
-  unconditionally, the centre-only error rate is 34.2%. Validated against
+  radius of the centre-based boundary — roughly half of all season
+  challenges), measuring from the ball's centre instead of its edge disagrees
+  with MLB's actual ruling on
+  **~67%** of them — worse than a coin flip. Across all challenges
+  unconditionally, the centre-only error rate is **~34%**. Validated against
   MLB's own `edge_distance` at R² = 1.0000 (slope 0.9999, intercept 0.1208 ft
   — exactly one ball radius); the corrected model matches MLB's ruling
-  **99.75%** of the time overall, 99.78% within the borderline band
+  **~99.8%** of the time overall, and within the borderline band
   (`scripts/validate_ball_radius_classification.py`). This replaces a figure
   (34.1%/66.9%/99.41%/99.46%) that had no reproducing script and turned out
   to predate the dedup fix. The disagreement rates above reproduce closely;
-  the corrected-model match rate did not (99.75% vs. a previously-quoted
-  99.41%), which is large enough to chase down rather than wave at rounding.
+  the corrected-model match rate did not (it now reproduces around 99.8% vs. a
+  previously-quoted 99.41%), which is large enough to chase down rather than
+  wave at rounding.
   Two concrete explanations were tested and ruled out: (1) using the raw
   trajectory re-solve instead of `plate_x`/`plate_z` — identical to 14
   decimal places, not the cause; (2) circularity — 1,198 of these season
@@ -277,16 +288,20 @@ Both are wrong, and both were measured rather than assumed.
   (`scripts/measured_height_uncertainty.py`).
 - **Runs, not wins.** The model is indifferent to score, so it values a challenge
   in a blowout the same as one in a tie game.
-- **One partial season** (through 2026-09-03) of a brand-new system, so
-  first-year learning effects are unmodelled and the policy may be chasing a
-  moving target.
-- **Team-level rankings track rosters, not front offices.** Team-level
-  split-half reliability is r = 0.22 (95% CI [-0.16, 0.54]) — too weak to
-  call challenge accuracy a team trait — but player-level reliability
-  (r = 0.32–0.38 for players with enough volume in both halves) is
-  meaningfully higher, and clear of zero. Treat "runs left on the table" by
-  team as a 2026 snapshot of who was on the roster, not a proven ranking of
-  organizations.
+- **One partial season** of a brand-new system, so first-year learning
+  effects are unmodelled and the policy may be chasing a moving target. The
+  numbers on this page are regenerated daily as games are played; the app
+  footer shows the data-through date.
+- **Split-half reliability is not well estimated yet, so the team-vs-player
+  contrast is fragile.** Team-level split-half reliability is currently
+  **r ≈ 0.28** (95% CI [−0.09, 0.58]) and player-level is **r ≈ 0.27** at
+  ≥8 challenges/half, **r ≈ 0.38** at ≥10 — but both moved ~0.05 toward each
+  other on five days of new data, so treat these as poorly estimated with one
+  partial season. The "it's personnel, not front-office skill" reading leans
+  on the catcher-quality correlation (r = 0.48, p = 0.007) and the 28/30
+  role-σ replication, both stable across refreshes, more than on the
+  split-half gap. Treat "runs left on the table" by team as a 2026 snapshot
+  of who was on the roster, not a proven ranking of organizations.
 - **Perceptual σ is assumed location-independent within a role; it isn't —
   but how much that costs the headline number isn't pinned down by one
   season.** Splitting challenges into a 3×3 zone grid and testing whether the
@@ -423,10 +438,12 @@ this pass; for the latter, two concrete explanations (a trajectory-solve vs.
 check and the measured-height back-out it partly overlaps with) were tested
 and ruled out — see the Zone geometry limitations bullet for the full
 account. The new, regenerable numbers are the ones to trust in both cases.
-Every other headline number in this README (both σ values, the 34.2%
-ball-radius disagreement rate, the r = 0.44 catcher-quality correlation,
-Cincinnati's 1.32× quality ratio) reproduced within rounding of what was
-already published.
+Every other headline number in this README reproduced within rounding of what
+was published at that point. (Since 2026-09-09 the pipeline regenerates and
+re-checks all of them daily against the prose — see "Daily refresh and
+keeping the prose honest" — so any later movement, e.g. the catcher-quality
+correlation drifting from r = 0.44 to r = 0.48 over the following days, shows
+up as a failed build rather than a stale sentence.)
 
 ## Running it
 

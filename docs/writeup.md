@@ -10,7 +10,7 @@ and the one I want you to sit with before reading anything else: **a correct
 challenge is given back.** Only a wrong one costs you. A team that keeps
 winning its challenges never runs out.
 
-Given that, look at how players are actually behaving. Across 9,032
+Given that, look at how players are actually behaving. Across more than 9,000
 challenges in the 2026 season, the league-wide success rate is 53.7%. Just
 above a coin flip.
 
@@ -104,13 +104,14 @@ answer the original question: solve for the optimal policy, using the same
 imperfect information a player actually has, and compare it to what teams
 are doing.
 
-![Bar chart comparing runs per team per game across observed 2026 behavior (0.226), the optimal policy given the same information (0.282), and a hypothetical perfect-information ceiling (0.623)](images/decomposition_bars.png)
+![Bar chart comparing runs per team per game across observed 2026 behavior (0.226), the optimal policy given the same information (0.277), and a hypothetical perfect-information ceiling (0.624)](images/decomposition_bars.png)
 
 Teams currently challenge about 2.1 times a game and win 53.7% of the time,
 netting an estimated 37 runs per team over a season. The optimal policy,
 given identical information, challenges more — about 2.9 times a game — and
-wins a *smaller* share: 43.0%. It still comes out ahead, at roughly 46 runs
-per team-season, a gap of about 9 runs.
+wins a *smaller* share: 42.5%. It still comes out ahead, at roughly 45 runs
+per team-season, a gap of roughly 8–10 runs (the estimate has moved by a run
+or two across data revisions as the season has filled in).
 
 That's the headline, but the mechanism is the interesting part, and it isn't
 what you'd guess. The optimal policy isn't winning by challenging more often
@@ -183,11 +184,11 @@ So I ran the actual test: split each team's season by date and correlate
 first-half success rate
 against second-half. If challenge accuracy is a real, stable team skill,
 teams that are good in April through June should still be good in July
-through September. Across all 30 teams, the correlation came back at
-r = 0.22, 95% confidence interval −0.16 to 0.54. That interval contains
-zero. I can't call this a repeatable skill from that number alone, and I'm
-not going to round it up to one because a leaderboard is more satisfying
-than an unresolved question.
+through September. Right now the split-half correlation across all 30 teams
+is **r ≈ 0.28**, 95% confidence interval −0.09 to 0.58. That interval
+contains zero. I can't call this a repeatable team skill from that number
+alone, and I'm not going to round it up to one because a leaderboard is more
+satisfying than an unresolved question.
 
 It isn't simple noise either. Simulating 30 league-average teams at each
 team's real attempt count, the spread you'd expect from binomial chance
@@ -199,38 +200,41 @@ survives a Bonferroni correction for having checked all 30 teams
 produces. It just isn't the kind of variation that clearly carries over
 from one half of a season to the other.
 
-The split-half test also has an answer at the wrong level. Rosters change
+Maybe the split-half test has an answer at the wrong level. Rosters change
 mid-season — trades, call-ups, injuries — so a real, stable trait belonging
 to individual players can still fail a team-level reliability check if the
 players carrying it move around during the season. I re-ran the same
-split-half test on individual challengers instead of teams. At a minimum of
-8 challenges per half (104 players), the correlation is r = 0.32
-(p < 0.001, 95% CI 0.14–0.49); at a minimum of 10 (82 players), r = 0.38
-(p < 0.001, CI 0.18–0.55) — both clearly above the team-level 0.22 and,
-unlike it, comfortably clear of zero. Looser or stricter thresholds are
-noisier (5 challenges: r ≈ 0; 15 challenges: r ≈ 0.22 but only 51 players
-left, p = 0.12), which is what small samples do rather than a real reversal.
+split-half test on individual challengers instead of teams. At ≥8 challenges
+per half the individual correlation is **r ≈ 0.27** (n ≈ 108, 95% CI
+0.09–0.44); at ≥10 it is **r ≈ 0.38** (n ≈ 84, 95% CI 0.19–0.55). Both clear
+zero, but only the ≥10 cut is unambiguous — at ≥8 the player number now sits
+right on top of the team-level one.
 
-That points at personnel, not front offices — and it lines up with which
-teams' edges are quality-driven versus volume-driven. Cincinnati's lead is
-almost entirely quality, and its primary catcher, Tyler Stephenson,
-individually ranks in the 85th percentile of all catchers leaguewide on his
-own challenge success (69% on 119 attempts). Colorado, also quality-driven,
-has a similarly sharp catcher (80th percentile). Minnesota and Chicago's
-leads are volume stories instead — more attempts at average or
-below-average success rates — and their primary catchers grade out as
-merely average or below (58th and 13th percentile). A team doesn't need an
-exceptional catcher to lead the league if it's winning on attempt volume
-rather than hit rate, and that's the split the data actually shows.
+**And here's the honest caveat.** Five days of additional games moved *both*
+of these numbers by about 0.05, toward each other — the team figure up from
+0.22, the player ≥8 figure down from 0.32. Split-half reliability is just not
+well estimated with one partial season, at 30 teams or ~108 players, and the
+gap between the two levels is fragile enough that I wouldn't build the
+argument on it. What I'd build it on instead are the two pieces that have
+held steady across every data refresh: a team's challenge-*quality* edge
+tracks its own primary catcher's individual accuracy (**r = 0.48,
+p = 0.007** across all 30 teams), and the role-σ effect — fielders reading
+the pitch better than batters — replicates in 28 of 30 teams individually.
+Cincinnati's lead is almost entirely quality, and its primary catcher, Tyler
+Stephenson, ranks around the 85th percentile of all catchers leaguewide on
+his own challenge success (a 69% success rate). Colorado, also quality-driven,
+has a similarly sharp catcher. Minnesota and Chicago's leads are volume
+stories instead — more attempts at average or below-average success rates —
+and their primary catchers grade out middle-of-the-pack or worse. A team
+doesn't need an exceptional catcher to lead the league if it's winning on
+attempt volume rather than hit rate, and that's the split the data shows.
 
 None of this proves an organizational skill — one season still can't
 distinguish "genuinely better process" from "happened to roster the right
-people this year" — but it does resolve the apparent contradiction: the
-spread across teams is real, it fails a team-level reliability check
-because it isn't a team-level trait, and it passes a player-level one
-because that's the level it actually lives at. Read the team table as a
-snapshot of who was on which roster in 2026, not as a ranking of front
-offices.
+people this year." The spread across teams is real; whether it's a team
+property or a player property is exactly what a second season of ABS data
+would settle. Read the team table as a snapshot of who was on which roster
+in 2026, not as a ranking of front offices.
 
 ## What I'd want that I don't have
 
@@ -255,7 +259,7 @@ The perceptual-noise estimate is fit with a single confidence threshold per
 role. Real players almost certainly vary their threshold by count and game
 situation, and that variation looks exactly like noise to an estimator that
 isn't told about it — which means my noise estimate is inflated, and the
-coachable gap I'm reporting (9 runs) is a floor, not a point estimate.
+coachable gap I'm reporting (8–10 runs) is a floor, not a point estimate.
 Letting the threshold vary by count would tighten it, probably upward.
 
 Second, this model is built entirely on data MLB's own tracking system
