@@ -362,6 +362,17 @@ observed success rate means players are under-challenging.
    - Run environment is drifting by season — bases-loaded-2-out is 0.826 (2024)
      / 0.751 (2025) / 0.721 (2026) on even samples. Use 2026 for the decision
      model rather than the pooled table, or at minimum check sensitivity.
+   - **DONE / quantified (2026-09-09):** `build_challenge_opportunities.py`
+     uses `load_re_lookup(con, season=2026)` — 2026-only, confirmed in use.
+     Re-solved the full DP both ways: decision gap is **+8.2 runs/team-season
+     (2026-only) vs +7.0 (pooled 2024-26)** — a 15% swing, so the choice is
+     material. On current data the drift is 0.814 / 0.740 / 0.711. This is now
+     in `docs/writeup.md` ("The finding") and the README method section, not
+     just here. Sparse-cell check also done: 288 cells, min n=9, ~7% under
+     n=100, but only 0.3% of challenges / 0.6% of |dre| weight touch them —
+     shrinkage considered and deliberately NOT added (would change nothing at
+     that weight; the daily pipeline doesn't need the surface area). Also in
+     the writeup + README limitations.
 
 5. **`delta_run_exp` is COUNT-BASED, not base-out aware — do NOT use it as the
    run value of flipping a call.** The walkthrough (docs/) suggests it as a
