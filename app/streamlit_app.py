@@ -5,13 +5,45 @@ Loads precomputed parquet from app/data/ and does nothing but filter and plot.
 All modelling happens upstream in src/abs_policy.py.
 """
 import json
+import logging
 import sys
+import traceback
+from contextlib import contextmanager
 from pathlib import Path
 
 import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+logger = logging.getLogger("abs_app")
+
+
+@contextmanager
+def guarded_section(name):
+    """Render one independent page section (a tab). If its body raises, log
+    the FULL traceback server-side -- it stays visible in `streamlit run`
+    terminal output and in Streamlit Community Cloud logs -- and show a
+    scoped message in place of just this section, so the other tabs and the
+    footer still render. Streamlit executes every st.tabs() body on each
+    rerun, so without this an exception in one tab blanks the whole page.
+
+    This is NOT a silent catch: nothing is swallowed quietly, the traceback
+    is always logged, and it is only applied at the top level of each major
+    section -- not around small blocks.
+    """
+    try:
+        yield
+    except Exception:
+        logger.exception("Section %r failed to render", name)
+        traceback.print_exc()
+        st.error(
+            f"**The “{name}” section didn't load.** The rest of the "
+            "page is unaffected. If this keeps happening, the app may be "
+            "temporarily unavailable."
+        )
+        with st.expander("Technical detail"):
+            st.code(traceback.format_exc())
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from geometry import center_distance_to_zone, ball_edge_distance, HALF_WIDTH, BALL_RADIUS_FT
@@ -396,7 +428,7 @@ try:
          "Runs left on the table"])
 
     # ---------------------------------------------------------------- tab 1
-    with tab1:
+    with tab1, guarded_section("Decomposition"):
         st.markdown(
             f"""
             <div style="font-size:2.6rem; font-weight:800; color:{COLOR_OPTIMAL}; line-height:1.15;">
@@ -752,7 +784,7 @@ try:
                    "one is worth more. It is not 'challenge more' — it is 'challenge different'.")
 
     # ---------------------------------------------------------------- real games
-    with tab_games:
+    with tab_games, guarded_section("Real games from 2026"):
         st.markdown(
             "##### In short\n"
             "The rest of this site is averages. This tab is the specific "
@@ -1002,8 +1034,8 @@ try:
             # Whichever team makes the most genuinely-uncertain endorsed
             # challenges this refresh, and how well it does on them. Data-driven
             # so a change in the season standings can't break the page.
-            _cf_sorted = coinflip_team.sort_values("cf_attempts", ascending=False)
-            cf_leader = _cf_sorted.iloc[0] if len(_cf_sorted) else None
+            cf_leader = (coinflip_team.loc[coinflip_team["cf_attempts"].idxmax()]
+                         if len(coinflip_team) else None)
 
             st.markdown("##### Do the coin-flip wins cluster — or is everyone equally good at them?")
             st.markdown(
@@ -1036,9 +1068,16 @@ try:
                 f"other teams have to let go."
             )
             ct = coinflip_team.copy()
-            ct["Highlight"] = np.where(
-                ct.team_abbr.isin(["CIN", "MIN", "ATH", "COL", "CWS"]),
-                "Top-5 runs gained", "Other teams")
+            # Highlight the 5 teams with the most total runs gained from
+            # challenges. `runs_rank` is exactly rank(runs_gained, desc) from
+            # scripts/team_decomposition.py, so this tracks the data on every
+            # refresh -- no literal team list to go stale. Falls back to a
+            # threshold on runs_gained if the rank column is ever absent.
+            if "runs_rank" in ct.columns:
+                _is_top5 = ct.runs_rank <= 5
+            else:
+                _is_top5 = ct.runs_gained >= ct.runs_gained.nlargest(5).min()
+            ct["Highlight"] = np.where(_is_top5, "Top-5 runs gained", "Other teams")
             enc = dict(
                 x=alt.X("cf_attempts_per_game:Q",
                         title="Genuinely-uncertain endorsed challenges per game"),
@@ -1122,7 +1161,7 @@ try:
         st.session_state["dt_picked"] = None
 
 
-    with tab2:
+    with tab2, guarded_section("Should I challenge?"):
         st.markdown(
             "##### In short\n"
             "**Set up a real game situation below and get an actual recommendation** "
@@ -1365,7 +1404,7 @@ try:
                 )
 
     # ---------------------------------------------------------------- tab 3
-    with tab3:
+    with tab3, guarded_section("Runs left on the table"):
         st.markdown(
             "##### In short\n"
             "These are the teams and players who would gain the most by "
@@ -1583,17 +1622,20 @@ try:
             )
         with col2:
             st.markdown("**But the spread itself is real**")
-            _outlier = team_sig_test.sort_values("z", ascending=False).iloc[0]
+            _outlier = (team_sig_test.loc[team_sig_test["z"].idxmax()]
+                        if len(team_sig_test) else None)
+            _outlier_txt = (
+                f" The strongest single outlier, **{_outlier.team}**, sits "
+                f"about {_outlier.z:.1f} standard deviations above the league "
+                f"rate — well outside the team-to-team wobble that null "
+                f"produces — with a Bonferroni-corrected p ≈ "
+                f"{_outlier.p_bonferroni:.2f} for having checked all 30 teams."
+                if _outlier is not None else "")
             st.markdown(
                 f"Simulating 30 league-average teams at each team's real attempt "
                 f"count: under that null, the *spread* in success rate at least "
                 f"as large as the one actually observed is rare (p = 0.004), and "
-                f"the same holds for runs gained (p < 0.0001). The strongest "
-                f"single outlier, **{_outlier.team}**, sits about "
-                f"{_outlier.z:.1f} standard deviations above the league rate — "
-                f"well outside the team-to-team wobble that null produces — "
-                f"with a Bonferroni-corrected p ≈ {_outlier.p_bonferroni:.2f} "
-                f"for having checked all 30 teams."
+                f"the same holds for runs gained (p < 0.0001).{_outlier_txt}"
             )
             st.markdown(
                 "*So real variation exists in 2026 — the open question is only "
@@ -1839,15 +1881,17 @@ try:
         "Built and analysed by **Kaushal Namuduri** — "
         "[source on GitHub](https://github.com/Cowshal/mlb-abs-challenge-analysis)"
     )
-except Exception as e:
+except Exception:
+    # Shared setup (data loads, page header, tab creation, footer) failed --
+    # nothing renders, so a page-level message is appropriate. The per-tab
+    # guarded_section() handles isolated failures inside a single tab. Either
+    # way the FULL traceback is logged to stderr / Streamlit Cloud logs.
+    logger.exception("App failed to render (shared setup)")
+    traceback.print_exc()
     st.error(
-        "**Something didn't load right.** This usually means a deploy is "
-        "still finishing -- the app's code and its precomputed data briefly "
-        "got out of sync (a known failure mode after pushing new code: "
-        "Streamlit Cloud can serve the new app against not-yet-refreshed "
-        "data files for a few seconds). Refreshing in a minute almost always "
-        "fixes it. If it doesn't, it's a real bug, not a stale deploy."
+        "**Something didn't load correctly.** Please refresh the page. If the "
+        "issue continues, the application may be temporarily unavailable."
     )
     with st.expander("Technical detail"):
-        st.code(f"{type(e).__name__}: {e}")
+        st.code(traceback.format_exc())
     st.stop()
