@@ -23,6 +23,7 @@ Idempotency contract (the scheduled refresh in scripts/refresh_all.sh and
 
 Run: python src/ingest.py
 """
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -31,6 +32,14 @@ import pybaseball
 from pybaseball import statcast
 
 pybaseball.cache.enable()
+
+# Statcast's bulk CSV endpoint intermittently returns a malformed/HTML body
+# for a single day, which surfaces as pandas.errors.ParserError and kills the
+# whole multi-month statcast() call (seen in CI 2026-09-09). pybaseball caches
+# every day it *did* fetch, so a straight retry re-uses those and only
+# re-attempts the day that failed.
+PULL_RETRIES = 4
+PULL_BACKOFF_SECONDS = 20
 
 # Finished seasons: (start, end), pulled once and left alone.
 FINISHED_SEASONS = {
@@ -56,9 +65,26 @@ PITCH_KEY = ["game_pk", "at_bat_number", "pitch_number"]
 
 def _pull(start, end):
     print(f"  pulling Statcast {start} .. {end} ...")
-    df = statcast(start_dt=start, end_dt=end)
-    print(f"    {len(df):,} rows")
-    return df
+    last_err = None
+    for attempt in range(1, PULL_RETRIES + 1):
+        try:
+            df = statcast(start_dt=start, end_dt=end)
+            if df is None or df.empty:
+                raise RuntimeError("statcast() returned no rows")
+            print(f"    {len(df):,} rows")
+            return df
+        except Exception as e:  # ParserError, transient HTTP, empty body, ...
+            last_err = e
+            if attempt == PULL_RETRIES:
+                break
+            wait = PULL_BACKOFF_SECONDS * attempt
+            print(f"    attempt {attempt}/{PULL_RETRIES} failed "
+                  f"({type(e).__name__}: {e}); retrying in {wait}s "
+                  f"(cached days are reused)")
+            time.sleep(wait)
+    raise RuntimeError(
+        f"Statcast pull {start}..{end} failed after {PULL_RETRIES} attempts: "
+        f"{type(last_err).__name__}: {last_err}") from last_err
 
 
 def pull_finished_seasons():

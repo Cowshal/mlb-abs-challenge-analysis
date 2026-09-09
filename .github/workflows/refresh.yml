@@ -56,8 +56,13 @@ jobs:
       # The 2024 and 2025 seasons are final and their parquet never changes, so
       # persist them (and pybaseball's own request cache) across runs. data/ is
       # gitignored, so this is the only thing carrying them between runs.
-      - name: Cache finished-season Statcast pulls
-        uses: actions/cache@v4
+      # restore + save (not the combined `actions/cache`) because the pipeline
+      # step exits non-zero whenever a prose figure has drifted -- with the
+      # combined action the cache would then never be saved, so every run would
+      # pay the full cold Statcast pull. The explicit save runs `if: always()`.
+      - name: Restore finished-season Statcast pulls
+        id: statcache
+        uses: actions/cache/restore@v4
         with:
           path: |
             data/statcast_2024.parquet
@@ -67,7 +72,19 @@ jobs:
 
       - name: Run the full refresh pipeline
         id: pipeline
-        run: bash scripts/refresh_all.sh
+        run: |
+          set -o pipefail
+          bash scripts/refresh_all.sh 2>&1 | tee /tmp/refresh.log
+
+      - name: Save finished-season Statcast pulls
+        if: always() && steps.statcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            data/statcast_2024.parquet
+            data/statcast_2025.parquet
+            ~/.cache/pybaseball
+          key: statcast-finished-v1
 
       - name: Commit refreshed app data
         if: success()
@@ -85,24 +102,38 @@ jobs:
           git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
-      - name: Open/update a drift issue on failure
+      - name: Open/update a failure issue
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          title="Data refresh pipeline failed"
+          if grep -q "PROSE IS OUT OF SYNC WITH THE DATA" /tmp/refresh.log 2>/dev/null; then
+            cause=$(printf '%s\n' \
+              "**Cause: a tracked figure in README.md / docs/writeup.md / the app has" \
+              "drifted past tolerance.** The log below names each figure, where it" \
+              "appears, and its current value. Fix the prose (or, if a figure was" \
+              "intentionally reworded, update its Occ pattern in" \
+              "src/reported_figures.py) and re-run.")
+          else
+            cause=$(printf '%s\n' \
+              "**Cause: a pipeline step failed before the prose-drift gate** (a" \
+              "Statcast/StatsAPI fetch, a script error, ...). This is often" \
+              "transient -- re-run the workflow first. The log tail is below.")
+          fi
+          tail_log=$(tail -n 40 /tmp/refresh.log 2>/dev/null || echo "(no log captured)")
           body=$(printf '%s\n' \
-            "The scheduled \`refresh data\` workflow failed on $(date -u +%Y-%m-%dT%H:%MZ)." \
+            "The \`refresh data\` workflow failed on $(date -u +%Y-%m-%dT%H:%MZ)." \
             "" \
-            "Most common cause: a hardcoded statistic in README.md, docs/writeup.md, or" \
-            "app/streamlit_app.py has drifted past tolerance as the season progressed." \
-            "The failing step's log names each figure, where it appears, and the value it" \
-            "should now be. Fix the prose (or, if a figure was intentionally reworded," \
-            "update its Occ pattern in src/reported_figures.py) and re-run." \
+            "$cause" \
             "" \
-            "Run log: ${RUN_URL}")
+            "Run: ${RUN_URL}" \
+            "" \
+            '```' \
+            "$tail_log" \
+            '```')
           existing=$(gh issue list --state open --label pipeline-drift --json number --jq '.[0].number' || true)
+          title="Data refresh pipeline failed"
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "$body"
           else
