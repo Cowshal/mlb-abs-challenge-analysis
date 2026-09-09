@@ -22,7 +22,7 @@
       "rendered": "0.003",
       "tol": 0.03,
       "unit": "",
-      "value": 0.0025556133427273157,
+      "value": 0.003356355824084854,
       "why_tol": "a p-value shown as text; nobody distinguishes 0.007 from 0.02"
     },
     "catcher_quality_corr_r": {
@@ -31,10 +31,10 @@
         "app/streamlit_app.py"
       ],
       "kind": "point",
-      "rendered": "0.53",
+      "rendered": "0.52",
       "tol": 0.1,
       "unit": "",
-      "value": 0.5306416219912559,
+      "value": 0.5181513472555155,
       "why_tol": "a 30-point correlation shown against a scatter; stable across refreshes so far (0.44 -> 0.48) but keep tol generous"
     },
     "ceil_challenges_per_game": {
@@ -80,7 +80,7 @@
       "rendered": "0.02",
       "tol": 0.03,
       "unit": "",
-      "value": 0.023470649804147037,
+      "value": 0.018552886392126933,
       "why_tol": "text ('p ~ 0.02')"
     },
     "cin_z_above_league": {
@@ -93,7 +93,7 @@
       "rendered": "3.4",
       "tol": 0.4,
       "unit": "sd",
-      "value": 3.3589631494204646,
+      "value": 3.4234002051488597,
       "why_tol": "text ('3.4 sd')"
     },
     "corrected_match_pct": {
@@ -457,7 +457,7 @@
       "rendered": "0.38",
       "tol": 0.12,
       "unit": "",
-      "value": 0.37735030190571406,
+      "value": 0.377350301905714,
       "why_tol": "the sturdier of the player cuts, but still one partial season"
     },
     "player_split_half_r_min8": {
@@ -589,6 +589,6 @@
       "why_tol": "FROZEN artifact (zone_sigma_refit.py is not re-run daily); value does not move between refreshes, so tol stays tight"
     }
   },
-  "generated_at": "2026-09-09T18:04:32.393284+00:00",
+  "generated_at": "2026-09-09T18:45:34.437774+00:00",
   "n_figures": 51
 }
