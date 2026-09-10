@@ -50,6 +50,7 @@ from geometry import center_distance_to_zone, ball_edge_distance, HALF_WIDTH, BA
 from run_expectancy import flip_value
 from challenge_rules import (break_even_probability, expected_challenge_value,
                              recommend)
+from app_cache import file_signature
 
 DATA = Path(__file__).parent / "data"
 
@@ -97,12 +98,36 @@ def policy_color_encoding(field="Policy", legend=True):
     )
 
 
-@st.cache_data
+# --- data loading with file-freshness in the cache key ---------------------
+# @st.cache_data keys on (function source + argument hashes), NOT on the
+# contents of files a function reads. The nightly refresh replaces
+# app/data/*.parquet without touching this module, and Streamlit Cloud reruns
+# the script in the same process on a code-only redeploy -- so without a
+# freshness token in the key, a cached DataFrame from yesterday's data would
+# survive until a manual "Reboot app". file_signature() -> (mtime_ns, size)
+# is passed through as an explicit argument: replace the file (git checkout on
+# redeploy, CI commit) and the key changes, forcing a fresh read. See
+# src/app_cache.py.
+# NOTE: `sig` must NOT start with an underscore. Streamlit deliberately
+# EXCLUDES underscore-prefixed parameters from the cache key (its documented
+# way to pass unhashable handles like DB connections). An underscore here
+# would silently defeat the whole point -- the cache would key on path_str
+# only and still go stale.
+@st.cache_data(show_spinner=False)
+def _read_parquet(path_str, sig):
+    return pd.read_parquet(path_str)
+
+
 def load(name):
-    return pd.read_parquet(DATA / f"{name}.parquet")
+    path = DATA / f"{name}.parquet"
+    return _read_parquet(str(path), file_signature(path))
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
+def _read_json(path_str, sig):
+    return json.loads(Path(path_str).read_text())
+
+
 def load_reported_figures():
     """The pipeline's data-provenance snapshot (src/reported_figures.py ->
     scripts/build_reported_figures.py). Optional: an older app/data/ set may
@@ -111,7 +136,7 @@ def load_reported_figures():
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text())
+        return _read_json(str(path), file_signature(path))
     except Exception:
         return {}
 
@@ -151,23 +176,27 @@ coinflip_summary = load("coinflip_summary").iloc[0]
 sigma["Role"] = sigma.side.map(ROLE_LABELS)
 
 
-@st.cache_data
-def re_lookup_dict():
+# These derive from a specific artifact. They take that DataFrame as an
+# argument (not a closed-over global) so @st.cache_data hashes its contents
+# and recomputes when the underlying file was refreshed -- same reasoning as
+# _read_parquet above.
+@st.cache_data(show_spinner=False)
+def re_lookup_dict(re_df):
     return {(int(r.balls), int(r.strikes), int(r.outs), bool(r.r1), bool(r.r2), bool(r.r3)):
-            r.run_exp for r in re_2026.itertuples()}
+            r.run_exp for r in re_df.itertuples()}
 
 
-@st.cache_data
-def option_value_lookup():
-    return option_values.set_index("t")[["C_k0", "C_k1"]].to_dict("index")
+@st.cache_data(show_spinner=False)
+def option_value_lookup(ov_df):
+    return ov_df.set_index("t")[["C_k0", "C_k1"]].to_dict("index")
 
 
-@st.cache_data
-def posterior_grids():
+@st.cache_data(show_spinner=False)
+def posterior_grids(post_df):
     """(o_grid, p_grid) per role, sorted by o -- np.interp requires ascending x."""
     out = {}
     for role in ("batting", "fielding"):
-        sub = posterior_lookup[posterior_lookup.role == role].sort_values("o_ft")
+        sub = post_df[post_df.role == role].sort_values("o_ft")
         out[role] = (sub.o_ft.values, sub.p_win.values)
     return out
 
@@ -223,7 +252,7 @@ def home_plate_outline(top_z):
 
 
 def compute_dre(balls, strikes, outs, r1, r2, r3):
-    return flip_value(re_lookup_dict(), balls, strikes, outs, (r1, r2, r3))
+    return flip_value(re_lookup_dict(re_2026), balls, strikes, outs, (r1, r2, r3))
 
 
 def half_inning_index(inning, half):
@@ -231,14 +260,14 @@ def half_inning_index(inning, half):
 
 
 def option_value_at(t):
-    cmap = option_value_lookup()
+    cmap = option_value_lookup(option_values)
     last = cmap[max(cmap.keys())]
     row = cmap.get(t, last)
     return row["C_k0"], row["C_k1"]
 
 
-@st.cache_data
-def zone_click_grid(role, height_ft=REPRESENTATIVE_HEIGHT_FT, cell_in=1.3):
+@st.cache_data(show_spinner=False)
+def zone_click_grid(role, post_df, height_ft=REPRESENTATIVE_HEIGHT_FT, cell_in=1.3):
     """A grid of cells covering the full dimensionally-accurate plot area
     (zone + ball-radius buffer + click margin + the space reserved for the
     plate diagram), each carrying the model's P(call was wrong) for a click
@@ -259,7 +288,7 @@ def zone_click_grid(role, height_ft=REPRESENTATIVE_HEIGHT_FT, cell_in=1.3):
 
     d = ball_edge_distance(center_distance_to_zone(
         xc_full / 12, zc_full / 12, np.full(xc_full.size, height_ft)))
-    o_grid, p_grid = posterior_grids()[role]
+    o_grid, p_grid = posterior_grids(post_df)[role]
     p_wrong = np.interp(d, o_grid, p_grid)
     return pd.DataFrame({
         "x0": x0, "x1": x1, "z0": z0, "z1": z1,
@@ -273,7 +302,7 @@ def p_wrong_given_click(x_ft, z_ft, role, height_ft):
     the DP conditions its challenge decision on -- not a separate calculation."""
     d = ball_edge_distance(center_distance_to_zone(
         np.array([x_ft]), np.array([z_ft]), np.array([height_ft])))[0]
-    o_grid, p_grid = posterior_grids()[role]
+    o_grid, p_grid = posterior_grids(posterior_lookup)[role]
     return float(np.interp(d, o_grid, p_grid))
 
 
@@ -1178,9 +1207,14 @@ try:
             pcol.button(name, on_click=_apply_preset, args=(name,), width='stretch')
 
         st.subheader("Game situation")
+        # Seed the default in session_state and let the widget read it from
+        # there (no default `value=` arg). The preset buttons also write
+        # st.session_state["dt_inning"]; passing both a default and a
+        # session-state value makes Streamlit log a warning on every rerun.
+        st.session_state.setdefault("dt_inning", 1)
         c1, c2, c3 = st.columns(3)
         with c1:
-            inning = st.number_input("Inning", 1, 15, 1, key="dt_inning")
+            inning = st.number_input("Inning", 1, 15, key="dt_inning")
             half_display = st.radio("Half", ["Top", "Bottom"], horizontal=True, key="dt_half")
             half = "Bot" if half_display == "Bottom" else "Top"
         with c2:
@@ -1268,7 +1302,7 @@ try:
             )
 
             height_ft = REPRESENTATIVE_HEIGHT_FT
-            grid = zone_click_grid(role)
+            grid = zone_click_grid(role, posterior_lookup)
             click = alt.selection_point(name="pt", fields=["xc", "zc"], nearest=True,
                                         on="click", empty=False)
             x_scale = alt.Scale(domain=[PLOT_X_LO, PLOT_X_HI])
@@ -1331,7 +1365,10 @@ try:
                 st.rerun()
 
             st.subheader("How confident are you the call was wrong?")
-            confidence = st.slider("Your confidence (%)", 0, 100, 50, key="dt_confidence")
+            # Same pattern: default lives in session_state (the zone click and
+            # the preset buttons both write dt_confidence), no `value=` arg.
+            st.session_state.setdefault("dt_confidence", 50)
+            confidence = st.slider("Your confidence (%)", 0, 100, key="dt_confidence")
             p_conf = confidence / 100.0
 
             st.divider()
