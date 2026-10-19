@@ -164,30 +164,31 @@ per-team ratios (attempts/success/leverage, against league baseline) are in
 
 **Read the team table as a 2026 snapshot, not a proven skill ranking.**
 Splitting each team's season in half and correlating first-half success rate
-against second-half gives **r ≈ 0.28** across all 30 teams (95% CI
-[−0.09, 0.58], p = 0.13). The interval contains zero, so this on its own can't
+against second-half gives **r ≈ 0.24** across all 30 teams (95% CI
+[−0.13, 0.55], p = 0.20). The interval contains zero, so this on its own can't
 call challenge accuracy a stable team trait. What *does* hold up: the spread
 in success rate and runs gained across teams is bigger than 30 teams drawing
-from the league rate at their own volume would produce by chance (p = 0.004
-and p < 0.0001), and Cincinnati's success rate sits 3.4 standard deviations
-above the league mean, surviving a correction for having checked all 30 teams
-(Bonferroni-adjusted p ≈ 0.02).
+from the league rate at their own volume would produce by chance (p = 0.002
+and p < 0.0001). Cincinnati's success rate sits 3.0 standard deviations
+above the league mean, but does not clear the 0.05 threshold after correcting
+for having checked all 30 teams (Bonferroni-adjusted p ≈ 0.07).
 
 **Is it a team trait or a personnel one?** Rosters change mid-season, so a
 real player-level skill can fail a team-level reliability check. Re-running
 the split-half test on individual challengers: at **≥8 challenges per half**
-the individual correlation is **r ≈ 0.27** (n ≈ 108, 95% CI [0.09, 0.44]);
-at **≥10** it is **r ≈ 0.38** (n ≈ 84, 95% CI [0.19, 0.55]). Both clear zero,
-but only the ≥10 cut is unambiguous — at ≥8 the player estimate now sits
-essentially on top of the team-level one.
+the individual correlation is **r ≈ 0.14** (n ≈ 116, 95% CI [−0.04, 0.32]);
+at **≥10** it is **r ≈ 0.23** (n ≈ 93, 95% CI [0.03, 0.42]). Only the ≥10
+interval clears zero; the ≥8 interval includes it. Neither point estimate
+exceeds the team-level one.
 
-**This contrast is fragile.** Five days of additional games moved *both*
-numbers by about 0.05, toward each other (team 0.22 → 0.28, player-≥8
-0.32 → 0.27). Split-half reliability is simply not well estimated with one
-partial season at n = 30 teams or n ≈ 108 players, and the gap between the
+**This contrast is fragile.** Since the September 9 snapshot, the team
+correlation moved from 0.28 to 0.24 (−0.04), the player-≥8 estimate from 0.27
+to 0.14 (−0.13), and player-≥10 from 0.38 to 0.23 (−0.15). Split-half
+reliability is simply not well estimated with one season at n = 30 teams
+or n ≈ 116 players, and the gap between the
 two levels should not be leaned on. The personnel reading rests instead on
 two things that have been **stable across every pipeline refresh**: the
-catcher-quality correlation (**r = 0.48, p = 0.007** — a team's challenge-
+catcher-quality correlation (**r = 0.51, p = 0.004** — a team's challenge-
 *quality* edge tracks its own primary catcher's individual accuracy) and the
 role-σ effect replicating in **28 of 30 teams**. Cincinnati's quality-driven
 lead comes with a primary catcher (Tyler Stephenson) around the 85th
@@ -381,11 +382,12 @@ Both are wrong, and both were measured rather than assumed.
   footer shows the data-through date.
 - **Split-half reliability is not well estimated yet, so the team-vs-player
   contrast is fragile.** Team-level split-half reliability is currently
-  **r ≈ 0.28** (95% CI [−0.09, 0.58]) and player-level is **r ≈ 0.27** at
-  ≥8 challenges/half, **r ≈ 0.38** at ≥10 — but both moved ~0.05 toward each
-  other on five days of new data, so treat these as poorly estimated with one
-  partial season. The "it's personnel, not front-office skill" reading leans
-  on the catcher-quality correlation (r = 0.48, p = 0.007) and the 28/30
+  **r ≈ 0.24** (95% CI [−0.13, 0.55]) and player-level is **r ≈ 0.14** at
+  ≥8 challenges/half, **r ≈ 0.23** at ≥10. The ≥8 player interval now includes
+  zero, while the ≥10 interval remains above it; neither estimate exceeds the
+  team-level one. Treat these as poorly estimated with one season. The
+  personnel interpretation leans on the catcher-quality correlation
+  (r = 0.51, p = 0.004) and the 28/30
   role-σ replication, both stable across refreshes, more than on the
   split-half gap. Treat "runs left on the table" by team as a 2026 snapshot
   of who was on the roster, not a proven ranking of organizations.

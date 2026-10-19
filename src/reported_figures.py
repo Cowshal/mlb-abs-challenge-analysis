@@ -135,6 +135,7 @@ class Figure:
     unit: str = ""
     kind: str = "point"          # "point" | "range" | "floor"
     why: str = ""                # one-line tolerance rationale (into the JSON)
+    threshold: Optional[float] = None  # reject a changed statistical conclusion
 
 
 @dataclass(frozen=True)
@@ -382,6 +383,7 @@ FIGURES: list[Figure] = [
         "player_split_half_r_min8",
         lambda: float(_app("player_skill_test").set_index("min_challenges_per_half").loc[8, "r"]),
         (Occ("README.md", r"the individual correlation is \*\*r ≈ ([\d.]+)\*\*"),
+         Occ("README.md", r"and player-level is \*\*r ≈ ([\d.]+)\*\*"),
          Occ("docs/writeup.md", r"the individual correlation is \*\*r ≈ ([\d.]+)\*\*")),
         tol=0.12, render=_r(2),
         why="same instability as the team figure (moved 0.32->0.27 on 5 days)",
@@ -398,6 +400,7 @@ FIGURES: list[Figure] = [
         "player_split_half_r_min10",
         lambda: float(_app("player_skill_test").set_index("min_challenges_per_half").loc[10, "r"]),
         (Occ("README.md", r"at \*\*≥10\*\* it is \*\*r ≈ ([\d.]+)\*\*"),
+         Occ("README.md", r"≥8 challenges/half, \*\*r ≈ ([\d.]+)\*\* at ≥10"),
          Occ("docs/writeup.md", r"at ≥10 it is \*\*r ≈ ([\d.]+)\*\*")),
         tol=0.12, render=_r(2),
         why="the sturdier of the player cuts, but still one partial season",
@@ -412,8 +415,7 @@ FIGURES: list[Figure] = [
     Figure(
         "catcher_quality_corr_r",
         lambda: float(_app("catcher_summary").quality_corr_r.iloc[0]),
-        (Occ("README.md", r"catcher-quality correlation \(\*\*r = ([\d.]+),"),
-         Occ("app/streamlit_app.py", r"\*\*r = ([\d.]+), p = [\d.]+\*\*, across all 30 teams")),
+        (Occ("README.md", r"catcher-quality correlation \(\*\*r = ([\d.]+),"),),
         tol=0.10, render=_r(2),
         why="a 30-point correlation shown against a scatter; stable across "
             "refreshes so far (0.44 -> 0.48) but keep tol generous",
@@ -421,8 +423,7 @@ FIGURES: list[Figure] = [
     Figure(
         "catcher_quality_corr_p",
         lambda: float(_app("catcher_summary").quality_corr_p.iloc[0]),
-        (Occ("README.md", r"catcher-quality correlation \(\*\*r = [\d.]+, p = ([\d.]+)\*\*"),
-         Occ("app/streamlit_app.py", r"\*\*r = [\d.]+, p = ([\d.]+)\*\*, across all 30 teams")),
+        (Occ("README.md", r"catcher-quality correlation \(\*\*r = [\d.]+, p = ([\d.]+)\*\*"),),
         tol=0.03, render=_r(3),
         why="a p-value shown as text; nobody distinguishes 0.007 from 0.02",
     ),
@@ -442,7 +443,8 @@ FIGURES: list[Figure] = [
         lambda: float(_app("team_significance").set_index("team").loc["CIN", "p_bonferroni"]),
         (Occ("README.md", r"Bonferroni-adjusted p ≈ ([\d.]+)\)"),
          Occ("docs/writeup.md", r"\(p ≈ ([\d.]+)\)\. There is more real")),
-        tol=0.03, render=_r(2), why="text ('p ~ 0.02')",
+        tol=0.03, render=_r(2), threshold=0.05,
+        why="text; crossing the 0.05 significance threshold always needs review",
     ),
 
     # ---- ball-radius classification check --------------------------------
@@ -543,6 +545,23 @@ FIGURES: list[Figure] = [
     ),
 ]
 
+# Confidence limits determine whether the written reliability claim clears
+# zero. Check them even when the corresponding change in r is within tolerance.
+for _min_n in (8, 10):
+    for _bound, _capture in (("ci_lo", r"([−\-\d.]+), [−\-\d.]+"),
+                             ("ci_hi", r"[−\-\d.]+, ([−\-\d.]+)")):
+        _prefix = (r"the individual correlation is" if _min_n == 8
+                   else r"at (?:\*\*)?≥10(?:\*\*)? it is")
+        FIGURES.append(Figure(
+            f"player_split_half_{_bound}_min{_min_n}",
+            lambda n=_min_n, b=_bound: float(
+                _app("player_skill_test").set_index("min_challenges_per_half").loc[n, b]),
+            tuple(Occ(path, _prefix + r" \*\*r ≈ [\d.]+\*\* \(n ≈ \d+, 95% CI\s+\["
+                      + _capture + r"\]") for path in ("README.md", "docs/writeup.md")),
+            tol=0.12, render=_r(2), threshold=0.0,
+            why="CI endpoints may wobble, but a change in whether they clear zero needs review",
+        ))
+
 
 # ---------------------------------------------------------------- collect / check
 
@@ -557,6 +576,7 @@ def collect() -> dict:
             "tol": f.tol,
             "kind": f.kind,
             "why_tol": f.why,
+            "threshold": f.threshold,
             "appears_in": sorted({o.path for o in f.occ}),
         }
     return {
@@ -602,6 +622,11 @@ def _check_one(f: Figure, want: float, text: str, o: Occ) -> Optional[Problem]:
                        f"prose claims a floor of {m.group(1).strip()}; data has fallen to "
                        f"{f.render(want)}{(' ' + f.unit) if f.unit else ''} "
                        f"(below floor - tolerance {f.tol:g}) -- likely a data regression")
+
+    if f.threshold is not None and (got < f.threshold) != (want < f.threshold):
+        return Problem(f.key, o.path, line,
+                       f"prose says {m.group(1)!r}; data is now {f.render(want)}, "
+                       f"crossing the {f.threshold:g} threshold -- review the interpretation")
 
     if abs(got - want) > f.tol:
         return Problem(f.key, o.path, line,

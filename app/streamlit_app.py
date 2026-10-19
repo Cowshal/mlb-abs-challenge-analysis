@@ -51,6 +51,7 @@ from run_expectancy import flip_value
 from challenge_rules import (break_even_probability, expected_challenge_value,
                              recommend)
 from app_cache import file_signature
+from skill_summary import interval_description, player_reliability_summary
 
 DATA = Path(__file__).parent / "data"
 
@@ -1529,6 +1530,20 @@ try:
         # ------------------------------------------------ whose skill is it?
         st.divider()
         st.subheader("Whose skill is it — the team's, or the player's?")
+        player_reliability_text = player_reliability_summary(player_skill_test)
+        team_r = np.corrcoef(split_half.h1_rate, split_half.h2_rate)[0, 1]
+        team_ci_lo, team_ci_hi = np.tanh(
+            np.arctanh(team_r) + np.array([-1, 1]) * 1.96 / np.sqrt(len(split_half) - 3)
+        )
+        team_reliability_text = (
+            f"Team-level **r ≈ {team_r:.2f}**, 95% CI "
+            f"[{team_ci_lo:.2f}, {team_ci_hi:.2f}]; the interval "
+            f"{interval_description(team_ci_lo, team_ci_hi)}."
+        )
+        quality_text = (
+            f"**r = {catcher_summary.quality_corr_r.iloc[0]:.2f}, "
+            f"p = {catcher_summary.quality_corr_p.iloc[0]:.3f}**"
+        )
         st.markdown(
             "##### In short\n"
             "**The evidence leans toward challenge accuracy being a *player* "
@@ -1539,18 +1554,15 @@ try:
             "precisely than batting ones — the exact league-wide pattern, found "
             "28 separate times. Stable across every data refresh.\n"
             "2. **A team's quality edge tracks its own catcher's accuracy** "
-            "(**r = 0.48, p = 0.007**, across all 30 teams) — the clubs that "
+            f"({quality_text}, across all 30 teams) — the clubs that "
             "gain runs by challenging *well* rather than just *often* are the "
             "ones with an individually sharp catcher. Also stable across "
             "refreshes.\n"
             "3. **The split-half reliability test — the fragile strand.** "
-            "Splitting the season in half, individual challengers' success "
-            "rates correlate across halves at **r ≈ 0.27** (≥8 challenges/half) "
-            "to **r ≈ 0.38** (≥10); the team-level version is **r ≈ 0.28**, "
-            "interval crossing zero. The player numbers still clear zero, but "
-            "five days of new games moved *both* the player and team figures "
-            "~0.05 toward each other — so treat split-half reliability as "
-            "poorly estimated with one partial season, and lean on (1) and (2).\n\n"
+            f"{player_reliability_text} {team_reliability_text} "
+            "These estimates have shifted materially across data refreshes. "
+            "Treat split-half reliability as poorly estimated with one season, "
+            "and lean on (1) and (2).\n\n"
             "So the team table above is a snapshot of who was on the roster in "
             "2026, not a standing ranking of front offices. What this season "
             "*can't* settle is whether the player skill is one a front office "
@@ -1616,23 +1628,20 @@ try:
                 "CI means the point estimate is shakier than it looks; a CI "
                 "that spans zero means the data can't rule out \"no effect at "
                 "all.\" When that lands on a *supporting* check — like the "
-                "team-level reliability test just below — a null still carries "
-                "information: it points toward the skill being a player's "
-                "rather than a team's, though (see below) that reading now "
-                "rests more on the catcher-quality and role-effect results "
-                "than on the split-half contrast."
+                "team-level reliability test just below — it limits what we "
+                "can conclude from that check. It does not establish a player "
+                "skill by itself; that interpretation rests more on the "
+                "catcher-quality and role-effect results."
             )
 
         st.divider()
-        st.markdown("##### Why the team-level test washes out")
+        st.markdown("##### Does team accuracy carry across halves?")
         st.caption(
-            "This is the supporting analysis the reframing above turns on — a "
-            "null result here is the *evidence*, not a loose end. The headline "
+            "This supporting check tests repeatability. The headline "
             "decision gap does not depend on it."
         )
 
         sh = split_half.merge(team_sig_test[["team", "z", "p_bonferroni"]], on="team")
-        r_val = np.corrcoef(sh.h1_rate, sh.h2_rate)[0, 1]
 
         col1, col2 = st.columns([3, 2])
         with col1:
@@ -1650,12 +1659,10 @@ try:
             )
             st.altair_chart((line + pts).properties(height=320), width='stretch')
             st.markdown(
-                f"*What this means: a team's first-half challenge success only "
-                f"loosely predicts its second half — the dots don't hug the "
-                f"diagonal (r = {r_val:.2f}, 95% CI crosses zero). The "
-                f"player-level version below is somewhat stronger, but both "
-                f"estimates have moved ~0.05 between data refreshes, so this "
-                f"contrast is suggestive rather than settled.*"
+                f"{team_reliability_text} Compare the individual-player "
+                f"results below before attributing accuracy to a team or its "
+                f"players. These estimates have shifted materially across "
+                f"refreshes; the contrast remains uncertain."
             )
         with col2:
             st.markdown("**But the spread itself is real**")
@@ -1666,18 +1673,20 @@ try:
                 f"about {_outlier.z:.1f} standard deviations above the league "
                 f"rate — well outside the team-to-team wobble that null "
                 f"produces — with a Bonferroni-corrected p ≈ "
-                f"{_outlier.p_bonferroni:.2f} for having checked all 30 teams."
+                f"{_outlier.p_bonferroni:.2f} for having checked all 30 teams. "
+                f"This {'clears' if _outlier.p_bonferroni < 0.05 else 'does not clear'} "
+                f"the 0.05 threshold after correction."
                 if _outlier is not None else "")
             st.markdown(
                 f"Simulating 30 league-average teams at each team's real attempt "
                 f"count: under that null, the *spread* in success rate at least "
-                f"as large as the one actually observed is rare (p = 0.004), and "
+                f"as large as the one actually observed is rare (p = 0.002), and "
                 f"the same holds for runs gained (p < 0.0001).{_outlier_txt}"
             )
             st.markdown(
                 "*So real variation exists in 2026 — the open question is only "
                 "whether it's a **team** property or a **player** property. The "
-                "next two analyses settle that: player, not team.*"
+                "next analyses examine the player/personnel interpretation.*"
             )
 
         st.markdown("**The same test at the player level**")
@@ -1696,16 +1705,11 @@ try:
         )
         st.markdown(
             "Same split-half design, on individual challengers instead of "
-            "teams. The load-bearing rows are the **8-** and **10-per-half** "
-            "thresholds: **r ≈ 0.27–0.38**, both 95% intervals clearing zero — "
-            "positive, but only the 10-per-half row is unambiguous, and the "
-            "8-per-half row now sits about where the team-level estimate does. "
-            "The 5-per-half row (r ≈ 0, too lax a bar) and the 15-per-half row "
-            "(underpowered) bracket it as diagnostics.\n\n"
-            "*The catch: both the player and team split-half numbers moved "
-            "~0.05 toward each other on five days of additional games, so "
-            "split-half reliability is poorly estimated with one partial "
-            "season. It leans toward the skill being the player's, but the "
+            f"teams. {player_reliability_text} "
+            "The 5-per-half and 15-per-half rows bracket these as diagnostics.\n\n"
+            "*The catch: the player and team split-half estimates have shifted "
+            "materially across refreshes, so reliability is poorly estimated "
+            "with one season. The "
             "weight of the personnel reading is on the catcher-quality "
             "correlation and the 28/30 role-effect replication — not this "
             "contrast. What no single season settles: whether a front office "
@@ -1805,8 +1809,8 @@ try:
             f"enough to include a below-average catcher. {_firm} sit on firmer "
             f"ground, but even the firmest low end is not always clearly above "
             f"average. This fits the player-level split-half reliability above "
-            f"(r ≈ 0.27–0.38, and itself unstable across refreshes): individual "
-            f"accuracy looks like real repeatable signal, but a noisy one — this "
+            f"(including its confidence intervals): individual accuracy is "
+            f"estimated noisily — this "
             f"season's exact ranking of any one catcher would likely move some "
             f"by next season."
         )
@@ -1862,10 +1866,10 @@ try:
             "**player** skill — most clearly for **catchers** — rather than a "
             "front-office one. The strongest strands: a team's edge in "
             "challenging *well* tracks its own catcher's individual accuracy "
-            "(r = 0.48, p = 0.007), and the role effect replicates in 28 of 30 "
-            "teams. The split-half reliability test points the same way — "
-            "positive on individuals, null on teams — but both halves of that "
-            "contrast shifted materially on five days of new data, so it is "
+            f"({quality_text}), and the role effect replicates in 28 of 30 "
+            "teams. The split-half results and their confidence intervals "
+            "above have shifted materially across data refreshes, so this "
+            "contrast is "
             "treated here as support, not proof. That "
             "reframes the question a team should ask: not just *when* to "
             "challenge (the optimal-policy question this whole page answers) but "

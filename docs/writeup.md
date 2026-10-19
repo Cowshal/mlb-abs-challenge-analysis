@@ -228,7 +228,7 @@ first-half success rate
 against second-half. If challenge accuracy is a real, stable team skill,
 teams that are good in April through June should still be good in July
 through September. Right now the split-half correlation across all 30 teams
-is **r ≈ 0.28**, 95% confidence interval −0.09 to 0.58. That interval
+is **r ≈ 0.24**, 95% confidence interval −0.13 to 0.55. That interval
 contains zero. I can't call this a repeatable team skill from that number
 alone, and I'm not going to round it up to one because a leaderboard is more
 satisfying than an unresolved question.
@@ -236,11 +236,12 @@ satisfying than an unresolved question.
 It isn't simple noise either. Simulating 30 league-average teams at each
 team's real attempt count, the spread you'd expect from binomial chance
 alone is smaller than the spread MLB teams actually showed in 2026 — for
-both success rate (p = 0.004) and runs gained (p < 0.0001). One team,
-Cincinnati, sits 3.4 standard deviations above the league rate, a gap that
-survives a Bonferroni correction for having checked all 30 teams
-(p ≈ 0.02). There is more real variation across teams than chance alone
-produces. It just isn't the kind of variation that clearly carries over
+both success rate (p = 0.002) and runs gained (p < 0.0001). One team,
+Cincinnati, sits 3.0 standard deviations above the league rate, but its
+individual result does not clear the 0.05 threshold after a Bonferroni
+correction for having checked all 30 teams (p ≈ 0.07). There is more real
+variation across teams than chance alone produces. It just isn't the kind
+of variation that clearly carries over
 from one half of a season to the other.
 
 Maybe the split-half test has an answer at the wrong level. Rosters change
@@ -248,20 +249,21 @@ mid-season — trades, call-ups, injuries — so a real, stable trait belonging
 to individual players can still fail a team-level reliability check if the
 players carrying it move around during the season. I re-ran the same
 split-half test on individual challengers instead of teams. At ≥8 challenges
-per half the individual correlation is **r ≈ 0.27** (n ≈ 108, 95% CI
-0.09–0.44); at ≥10 it is **r ≈ 0.38** (n ≈ 84, 95% CI 0.19–0.55). Both clear
-zero, but only the ≥10 cut is unambiguous — at ≥8 the player number now sits
-right on top of the team-level one.
+per half the individual correlation is **r ≈ 0.14** (n ≈ 116, 95% CI
+[−0.04, 0.32]); at ≥10 it is **r ≈ 0.23** (n ≈ 93, 95% CI [0.03, 0.42]).
+Only the ≥10 interval clears zero; the ≥8 interval includes it. Neither
+point estimate exceeds the team-level one.
 
-**And here's the honest caveat.** Five days of additional games moved *both*
-of these numbers by about 0.05, toward each other — the team figure up from
-0.22, the player ≥8 figure down from 0.32. Split-half reliability is just not
-well estimated with one partial season, at 30 teams or ~108 players, and the
+**And here's the honest caveat.** Since the September 9 snapshot, the team
+figure fell from 0.28 to 0.24 (−0.04), the player ≥8 figure from 0.27 to
+0.14 (−0.13), and player ≥10 from 0.38 to 0.23 (−0.15). Split-half
+reliability is just not well estimated with one season, at 30 teams or
+~116 players, and the
 gap between the two levels is fragile enough that I wouldn't build the
 argument on it. What I'd build it on instead are the two pieces that have
 held steady across every data refresh: a team's challenge-*quality* edge
-tracks its own primary catcher's individual accuracy (**r = 0.48,
-p = 0.007** across all 30 teams), and the role-σ effect — fielders reading
+tracks its own primary catcher's individual accuracy (**r = 0.51,
+p = 0.004** across all 30 teams), and the role-σ effect — fielders reading
 the pitch better than batters — replicates in 28 of 30 teams individually.
 Cincinnati's lead is almost entirely quality, and its primary catcher, Tyler
 Stephenson, ranks around the 85th percentile of all catchers leaguewide on
