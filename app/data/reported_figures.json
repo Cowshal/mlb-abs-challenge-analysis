@@ -23,7 +23,7 @@
       "threshold": null,
       "tol": 0.03,
       "unit": "",
-      "value": 0.0031316561627276304,
+      "value": 0.0029503487572757774,
       "why_tol": "a p-value shown as text; nobody distinguishes 0.007 from 0.02"
     },
     "catcher_quality_corr_r": {
@@ -35,7 +35,7 @@
       "threshold": null,
       "tol": 0.1,
       "unit": "",
-      "value": 0.5213715688189308,
+      "value": 0.5241183499175456,
       "why_tol": "a 30-point correlation shown against a scatter; stable across refreshes so far (0.44 -> 0.48) but keep tol generous"
     },
     "ceil_challenges_per_game": {
@@ -85,7 +85,7 @@
       "threshold": 0.05,
       "tol": 0.03,
       "unit": "",
-      "value": 0.08139396091289663,
+      "value": 0.08266814469101824,
       "why_tol": "text; crossing the 0.05 significance threshold always needs review"
     },
     "cin_z_above_league": {
@@ -98,7 +98,7 @@
       "threshold": null,
       "tol": 0.4,
       "unit": "sd",
-      "value": 2.9984988244143933,
+      "value": 2.9937623570663447,
       "why_tol": "text ('3.4 sd')"
     },
     "corrected_match_pct": {
@@ -689,6 +689,6 @@
       "why_tol": "FROZEN artifact (zone_sigma_refit.py is not re-run daily); value does not move between refreshes, so tol stays tight"
     }
   },
-  "generated_at": "2026-10-20T19:29:14.506892+00:00",
+  "generated_at": "2026-10-21T19:33:39.855283+00:00",
   "n_figures": 55
 }
