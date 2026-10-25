@@ -494,7 +494,7 @@
       "threshold": 0.0,
       "tol": 0.12,
       "unit": "",
-      "value": 0.03015075579553102,
+      "value": 0.030150755795531076,
       "why_tol": "CI endpoints may wobble, but a change in whether they clear zero needs review"
     },
     "player_split_half_ci_lo_min8": {
@@ -546,7 +546,7 @@
       "threshold": null,
       "tol": 0.12,
       "unit": "",
-      "value": 0.23243503569107357,
+      "value": 0.23243503569107363,
       "why_tol": "the sturdier of the player cuts, but still one partial season"
     },
     "player_split_half_r_min8": {
@@ -689,6 +689,6 @@
       "why_tol": "FROZEN artifact (zone_sigma_refit.py is not re-run daily); value does not move between refreshes, so tol stays tight"
     }
   },
-  "generated_at": "2026-10-24T18:33:03.261644+00:00",
+  "generated_at": "2026-10-25T18:43:01.467388+00:00",
   "n_figures": 55
 }
