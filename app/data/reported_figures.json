@@ -23,7 +23,7 @@
       "threshold": null,
       "tol": 0.03,
       "unit": "",
-      "value": 0.002956596006926156,
+      "value": 0.0029503487572757774,
       "why_tol": "a p-value shown as text; nobody distinguishes 0.007 from 0.02"
     },
     "catcher_quality_corr_r": {
@@ -35,7 +35,7 @@
       "threshold": null,
       "tol": 0.1,
       "unit": "",
-      "value": 0.5240213165202287,
+      "value": 0.5241183499175456,
       "why_tol": "a 30-point correlation shown against a scatter; stable across refreshes so far (0.44 -> 0.48) but keep tol generous"
     },
     "ceil_challenges_per_game": {
@@ -85,7 +85,7 @@
       "threshold": 0.05,
       "tol": 0.03,
       "unit": "",
-      "value": 0.08380882434551706,
+      "value": 0.08266814469101824,
       "why_tol": "text; crossing the 0.05 significance threshold always needs review"
     },
     "cin_z_above_league": {
@@ -98,7 +98,7 @@
       "threshold": null,
       "tol": 0.4,
       "unit": "sd",
-      "value": 2.9895783966457308,
+      "value": 2.9937623570663447,
       "why_tol": "text ('3.4 sd')"
     },
     "corrected_match_pct": {
@@ -494,7 +494,7 @@
       "threshold": 0.0,
       "tol": 0.12,
       "unit": "",
-      "value": 0.030150755795531076,
+      "value": 0.03015075579553102,
       "why_tol": "CI endpoints may wobble, but a change in whether they clear zero needs review"
     },
     "player_split_half_ci_lo_min8": {
@@ -546,7 +546,7 @@
       "threshold": null,
       "tol": 0.12,
       "unit": "",
-      "value": 0.23243503569107363,
+      "value": 0.23243503569107357,
       "why_tol": "the sturdier of the player cuts, but still one partial season"
     },
     "player_split_half_r_min8": {
@@ -689,6 +689,6 @@
       "why_tol": "FROZEN artifact (zone_sigma_refit.py is not re-run daily); value does not move between refreshes, so tol stays tight"
     }
   },
-  "generated_at": "2026-10-27T20:17:33.421299+00:00",
+  "generated_at": "2026-10-28T20:50:32.184990+00:00",
   "n_figures": 55
 }
