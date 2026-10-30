@@ -11,7 +11,7 @@
       "threshold": null,
       "tol": 1.5,
       "unit": "pp",
-      "value": 48.92631578947368,
+      "value": 48.93661823541798,
       "why_tol": "an out-of-fit check value shown as text"
     },
     "catcher_quality_corr_p": {
@@ -43,11 +43,11 @@
         "README.md"
       ],
       "kind": "point",
-      "rendered": "4.82",
+      "rendered": "4.81",
       "threshold": null,
       "tol": 0.3,
       "unit": "",
-      "value": 4.818780889621087,
+      "value": 4.807042833607908,
       "why_tol": "chart bar; the high-precision benchmark is the noisiest of the three policies"
     },
     "ceil_runs_per_game": {
@@ -56,11 +56,11 @@
         "docs/writeup.md"
       ],
       "kind": "point",
-      "rendered": "0.618",
+      "rendered": "0.619",
       "threshold": null,
       "tol": 0.02,
       "unit": "",
-      "value": 0.6180420459570861,
+      "value": 0.618517847581765,
       "why_tol": "chart bar resolution"
     },
     "ceil_success_rate": {
@@ -68,11 +68,11 @@
         "README.md"
       ],
       "kind": "point",
-      "rendered": "80.2",
+      "rendered": "80.3",
       "threshold": null,
       "tol": 2.0,
       "unit": "pp",
-      "value": 80.19658119658119,
+      "value": 80.276742492396,
       "why_tol": "text"
     },
     "cin_bonferroni_p": {
@@ -110,7 +110,7 @@
       "threshold": null,
       "tol": 0.3,
       "unit": "pp",
-      "value": 99.7537179122857,
+      "value": 99.753624561736,
       "why_tol": "precise-looking text; a reader will not spot 99.8 vs 99.9"
     },
     "decision_gap_runs_per_season": {
@@ -123,7 +123,7 @@
       "threshold": null,
       "tol": 0.75,
       "unit": "runs/season",
-      "value": 7.8945412514964,
+      "value": 8.456892764454764,
       "why_tol": "has visibly wandered across refreshes (10 -> 9.6 -> 9.1 -> 8.2); prose now states an 8-10 band and the check fires only if the computed gap leaves it by more than ~1 run"
     },
     "fld_success_modeled": {
@@ -136,7 +136,7 @@
       "threshold": null,
       "tol": 1.5,
       "unit": "pp",
-      "value": 57.9248224493331,
+      "value": 57.90294627383016,
       "why_tol": "out-of-fit check value, text"
     },
     "height_ambiguous_rate_pct": {
@@ -172,7 +172,7 @@
       "threshold": null,
       "tol": 3.0,
       "unit": "runs/season",
-      "value": 73.2920796661463,
+      "value": 72.78766140697529,
       "why_tol": "an illustrative curve with no on-page chart; shown as whole runs; only a regime change (several runs) matters"
     },
     "info_gap_season_ceiling_025": {
@@ -184,7 +184,7 @@
       "threshold": null,
       "tol": 3.0,
       "unit": "runs/season",
-      "value": 67.32251993156447,
+      "value": 66.89885143699901,
       "why_tol": "an illustrative curve with no on-page chart; shown as whole runs; only a regime change (several runs) matters"
     },
     "info_gap_season_ceiling_050": {
@@ -196,7 +196,7 @@
       "threshold": null,
       "tol": 3.0,
       "unit": "runs/season",
-      "value": 55.47981438628094,
+      "value": 55.00831071636811,
       "why_tol": "an illustrative curve with no on-page chart; shown as whole runs; only a regime change (several runs) matters"
     },
     "info_gap_season_ceiling_075": {
@@ -208,7 +208,7 @@
       "threshold": null,
       "tol": 3.0,
       "unit": "runs/season",
-      "value": 43.44048222819114,
+      "value": 43.0854897778551,
       "why_tol": "an illustrative curve with no on-page chart; shown as whole runs; only a regime change (several runs) matters"
     },
     "info_gap_season_ceiling_100": {
@@ -216,11 +216,11 @@
         "README.md"
       ],
       "kind": "point",
-      "rendered": "32",
+      "rendered": "33",
       "threshold": null,
       "tol": 3.0,
       "unit": "runs/season",
-      "value": 32.458029983479456,
+      "value": 32.51127240919733,
       "why_tol": "an illustrative curve with no on-page chart; shown as whole runs; only a regime change (several runs) matters"
     },
     "n_games_2026": {
@@ -241,11 +241,11 @@
         "docs/writeup.md"
       ],
       "kind": "floor",
-      "rendered": "10,523",
+      "rendered": "10,519",
       "threshold": null,
       "tol": 300,
       "unit": "challenges",
-      "value": 10523.0,
+      "value": 10519.0,
       "why_tol": "monotonically growing count; '9,000+' stays true all season; fires only if the challenge table regresses below the stated floor"
     },
     "n_robust_batters": {
@@ -269,7 +269,7 @@
       "threshold": null,
       "tol": 3.0,
       "unit": "pp",
-      "value": 67.4766355140187,
+      "value": 67.49579203291566,
       "why_tol": "text"
     },
     "naive_disagreement_pct": {
@@ -281,7 +281,7 @@
       "threshold": null,
       "tol": 2.0,
       "unit": "pp",
-      "value": 34.327934072179595,
+      "value": 34.33146972424903,
       "why_tol": "text"
     },
     "obs_challenges_per_game": {
@@ -293,7 +293,7 @@
       "threshold": null,
       "tol": 0.15,
       "unit": "/team-game",
-      "value": 2.1670098846787478,
+      "value": 2.166186161449753,
       "why_tol": "decomposition bar chart; ~0.1 bar resolution"
     },
     "obs_challenges_per_game_1dp": {
@@ -306,7 +306,7 @@
       "threshold": null,
       "tol": 0.2,
       "unit": "",
-      "value": 2.1670098846787478,
+      "value": 2.166186161449753,
       "why_tol": "rounded prose ('about 2.1 a game'); wide enough to survive the 2.1/2.2 rounding boundary"
     },
     "obs_mean_dre": {
@@ -318,7 +318,7 @@
       "threshold": null,
       "tol": 0.02,
       "unit": "",
-      "value": 0.2147047277027423,
+      "value": 0.2147228929888846,
       "why_tol": "leverage table; digit-level comparison"
     },
     "obs_median_dre": {
@@ -343,7 +343,7 @@
       "threshold": null,
       "tol": 0.02,
       "unit": "runs/team-game",
-      "value": 0.2268423197979667,
+      "value": 0.22675733226804354,
       "why_tol": "decomposition bar chart on a runs axis; ~0.02 is the smallest gap a reader could resolve between bars"
     },
     "obs_runs_per_overturn": {
@@ -355,7 +355,7 @@
       "threshold": null,
       "tol": 0.02,
       "unit": "",
-      "value": 0.19434479621364262,
+      "value": 0.19437486416480484,
       "why_tol": "leverage table"
     },
     "obs_success_rate": {
@@ -368,7 +368,7 @@
       "threshold": null,
       "tol": 1.5,
       "unit": "pp",
-      "value": 53.862966834552886,
+      "value": 53.854929175777166,
       "why_tol": "text-only percentage; a reader does not eyeball 53.7% vs 55%"
     },
     "obs_success_rate_54": {
@@ -381,7 +381,7 @@
       "threshold": null,
       "tol": 1.5,
       "unit": "",
-      "value": 53.862966834552886,
+      "value": 53.854929175777166,
       "why_tol": "rounded prose ('54%'); text only"
     },
     "opt_challenges_per_game": {
@@ -389,11 +389,11 @@
         "README.md"
       ],
       "kind": "point",
-      "rendered": "2.90",
+      "rendered": "2.91",
       "threshold": null,
       "tol": 0.2,
       "unit": "",
-      "value": 2.9034184514003294,
+      "value": 2.908154859967051,
       "why_tol": "chart bar; the optimal policy re-solves each refresh so it moves more than the observed row"
     },
     "opt_mean_dre": {
@@ -401,11 +401,11 @@
         "README.md"
       ],
       "kind": "point",
-      "rendered": "0.257",
+      "rendered": "0.259",
       "threshold": null,
       "tol": 0.02,
       "unit": "",
-      "value": 0.2567378065900337,
+      "value": 0.2586954653491675,
       "why_tol": "leverage table"
     },
     "opt_median_dre": {
@@ -417,7 +417,7 @@
       "threshold": null,
       "tol": 0.02,
       "unit": "",
-      "value": 0.20580009416214873,
+      "value": 0.20571799720701656,
       "why_tol": "leverage table"
     },
     "opt_runs_per_game": {
@@ -426,11 +426,11 @@
         "docs/writeup.md"
       ],
       "kind": "point",
-      "rendered": "0.276",
+      "rendered": "0.279",
       "threshold": null,
       "tol": 0.02,
       "unit": "",
-      "value": 0.27557405591831485,
+      "value": 0.27896037402393714,
       "why_tol": "chart bar resolution"
     },
     "opt_runs_per_overturn": {
@@ -438,11 +438,11 @@
         "README.md"
       ],
       "kind": "point",
-      "rendered": "0.220",
+      "rendered": "0.222",
       "threshold": null,
       "tol": 0.02,
       "unit": "",
-      "value": 0.22016907132927557,
+      "value": 0.22159849112714522,
       "why_tol": "leverage table"
     },
     "opt_success_rate": {
@@ -451,11 +451,11 @@
         "docs/writeup.md"
       ],
       "kind": "point",
-      "rendered": "43.1",
+      "rendered": "43.3",
       "threshold": null,
       "tol": 2.0,
       "unit": "pp",
-      "value": 43.109440385842966,
+      "value": 43.28706982013879,
       "why_tol": "text; a solved-policy quantity that is noisier than the observed rate"
     },
     "player_split_half_ci_hi_min10": {
@@ -468,7 +468,7 @@
       "threshold": 0.0,
       "tol": 0.12,
       "unit": "",
-      "value": 0.4164291180043299,
+      "value": 0.4162910810334932,
       "why_tol": "CI endpoints may wobble, but a change in whether they clear zero needs review"
     },
     "player_split_half_ci_hi_min8": {
@@ -477,11 +477,11 @@
         "docs/writeup.md"
       ],
       "kind": "point",
-      "rendered": "0.32",
+      "rendered": "0.31",
       "threshold": 0.0,
       "tol": 0.12,
       "unit": "",
-      "value": 0.3157254276320779,
+      "value": 0.3114625508745114,
       "why_tol": "CI endpoints may wobble, but a change in whether they clear zero needs review"
     },
     "player_split_half_ci_lo_min10": {
@@ -494,7 +494,7 @@
       "threshold": 0.0,
       "tol": 0.12,
       "unit": "",
-      "value": 0.030150755795531076,
+      "value": 0.02998392202578927,
       "why_tol": "CI endpoints may wobble, but a change in whether they clear zero needs review"
     },
     "player_split_half_ci_lo_min8": {
@@ -503,11 +503,11 @@
         "docs/writeup.md"
       ],
       "kind": "point",
-      "rendered": "-0.04",
+      "rendered": "-0.05",
       "threshold": 0.0,
       "tol": 0.12,
       "unit": "",
-      "value": -0.041846034395181454,
+      "value": -0.04656461405012033,
       "why_tol": "CI endpoints may wobble, but a change in whether they clear zero needs review"
     },
     "player_split_half_n_min10": {
@@ -546,7 +546,7 @@
       "threshold": null,
       "tol": 0.12,
       "unit": "",
-      "value": 0.23243503569107363,
+      "value": 0.23227706635421336,
       "why_tol": "the sturdier of the player cuts, but still one partial season"
     },
     "player_split_half_r_min8": {
@@ -559,7 +559,7 @@
       "threshold": null,
       "tol": 0.12,
       "unit": "",
-      "value": 0.1415538120200416,
+      "value": 0.13691765040659112,
       "why_tol": "same instability as the team figure (moved 0.32->0.27 on 5 days)"
     },
     "sigma_bat_in": {
@@ -568,11 +568,11 @@
         "docs/writeup.md"
       ],
       "kind": "point",
-      "rendered": "2.77",
+      "rendered": "2.78",
       "threshold": null,
       "tol": 0.12,
       "unit": "in",
-      "value": 2.7742766588899848,
+      "value": 2.775388067306058,
       "why_tol": "sigma-by-role bar chart; ~0.1 in bar resolution"
     },
     "sigma_fld_in": {
@@ -585,7 +585,7 @@
       "threshold": null,
       "tol": 0.12,
       "unit": "in",
-      "value": 2.00055154468723,
+      "value": 1.9995341213950821,
       "why_tol": "sigma bar chart resolution"
     },
     "sigma_precision_gap_pct": {
@@ -599,7 +599,7 @@
       "threshold": null,
       "tol": 4,
       "unit": "pp",
-      "value": 27.889255807397728,
+      "value": 27.954791441618532,
       "why_tol": "a ratio of two fitted sigmas, stated as '~28%'; noisier than either input"
     },
     "stephenson_pct_rank": {
@@ -637,7 +637,7 @@
       "threshold": null,
       "tol": 0.12,
       "unit": "",
-      "value": 0.2398382408807158,
+      "value": 0.24070590931587482,
       "why_tol": "split-half r at n=30 is poorly estimated (moved 0.22->0.28 on 5 days of data); prose frames it as fragile, so the gate should fire only on a sign flip or a >0.1 move, not normal wobble"
     },
     "zone_lr_swing_pp": {
@@ -689,6 +689,6 @@
       "why_tol": "FROZEN artifact (zone_sigma_refit.py is not re-run daily); value does not move between refreshes, so tol stays tight"
     }
   },
-  "generated_at": "2026-10-29T20:40:30.442917+00:00",
+  "generated_at": "2026-10-30T20:24:16.119018+00:00",
   "n_figures": 55
 }
