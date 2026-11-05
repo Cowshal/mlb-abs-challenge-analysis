@@ -47,7 +47,7 @@
       "threshold": null,
       "tol": 0.3,
       "unit": "",
-      "value": 4.818780889621087,
+      "value": 4.821869851729819,
       "why_tol": "chart bar; the high-precision benchmark is the noisiest of the three policies"
     },
     "ceil_runs_per_game": {
@@ -60,7 +60,7 @@
       "threshold": null,
       "tol": 0.02,
       "unit": "",
-      "value": 0.6180420459570861,
+      "value": 0.6184417604665322,
       "why_tol": "chart bar resolution"
     },
     "ceil_success_rate": {
@@ -72,7 +72,7 @@
       "threshold": null,
       "tol": 2.0,
       "unit": "pp",
-      "value": 80.19658119658119,
+      "value": 80.20072603032244,
       "why_tol": "text"
     },
     "cin_bonferroni_p": {
@@ -123,7 +123,7 @@
       "threshold": null,
       "tol": 0.75,
       "unit": "runs/season",
-      "value": 7.8945412514964,
+      "value": 8.200439771659918,
       "why_tol": "has visibly wandered across refreshes (10 -> 9.6 -> 9.1 -> 8.2); prose now states an 8-10 band and the check fires only if the computed gap leaves it by more than ~1 run"
     },
     "fld_success_modeled": {
@@ -172,7 +172,7 @@
       "threshold": null,
       "tol": 3.0,
       "unit": "runs/season",
-      "value": 73.2920796661463,
+      "value": 73.01261379101612,
       "why_tol": "an illustrative curve with no on-page chart; shown as whole runs; only a regime change (several runs) matters"
     },
     "info_gap_season_ceiling_025": {
@@ -184,7 +184,7 @@
       "threshold": null,
       "tol": 3.0,
       "unit": "runs/season",
-      "value": 67.32251993156447,
+      "value": 67.20246002986907,
       "why_tol": "an illustrative curve with no on-page chart; shown as whole runs; only a regime change (several runs) matters"
     },
     "info_gap_season_ceiling_050": {
@@ -196,7 +196,7 @@
       "threshold": null,
       "tol": 3.0,
       "unit": "runs/season",
-      "value": 55.47981438628094,
+      "value": 55.23866961664769,
       "why_tol": "an illustrative curve with no on-page chart; shown as whole runs; only a regime change (several runs) matters"
     },
     "info_gap_season_ceiling_075": {
@@ -208,7 +208,7 @@
       "threshold": null,
       "tol": 3.0,
       "unit": "runs/season",
-      "value": 43.44048222819114,
+      "value": 43.398319758224616,
       "why_tol": "an illustrative curve with no on-page chart; shown as whole runs; only a regime change (several runs) matters"
     },
     "info_gap_season_ceiling_100": {
@@ -220,7 +220,7 @@
       "threshold": null,
       "tol": 3.0,
       "unit": "runs/season",
-      "value": 32.458029983479456,
+      "value": 32.42129893612785,
       "why_tol": "an illustrative curve with no on-page chart; shown as whole runs; only a regime change (several runs) matters"
     },
     "n_games_2026": {
@@ -389,11 +389,11 @@
         "README.md"
       ],
       "kind": "point",
-      "rendered": "2.90",
+      "rendered": "2.91",
       "threshold": null,
       "tol": 0.2,
       "unit": "",
-      "value": 2.9034184514003294,
+      "value": 2.9093904448105437,
       "why_tol": "chart bar; the optimal policy re-solves each refresh so it moves more than the observed row"
     },
     "opt_mean_dre": {
@@ -401,11 +401,11 @@
         "README.md"
       ],
       "kind": "point",
-      "rendered": "0.257",
+      "rendered": "0.255",
       "threshold": null,
       "tol": 0.02,
       "unit": "",
-      "value": 0.2567378065900337,
+      "value": 0.2554889525440826,
       "why_tol": "leverage table"
     },
     "opt_median_dre": {
@@ -417,7 +417,7 @@
       "threshold": null,
       "tol": 0.02,
       "unit": "",
-      "value": 0.20580009416214873,
+      "value": 0.20571799720701656,
       "why_tol": "leverage table"
     },
     "opt_runs_per_game": {
@@ -426,11 +426,11 @@
         "docs/writeup.md"
       ],
       "kind": "point",
-      "rendered": "0.276",
+      "rendered": "0.277",
       "threshold": null,
       "tol": 0.02,
       "unit": "",
-      "value": 0.27557405591831485,
+      "value": 0.27746231838846,
       "why_tol": "chart bar resolution"
     },
     "opt_runs_per_overturn": {
@@ -442,7 +442,7 @@
       "threshold": null,
       "tol": 0.02,
       "unit": "",
-      "value": 0.22016907132927557,
+      "value": 0.2199048503499856,
       "why_tol": "leverage table"
     },
     "opt_success_rate": {
@@ -451,11 +451,11 @@
         "docs/writeup.md"
       ],
       "kind": "point",
-      "rendered": "43.1",
+      "rendered": "43.4",
       "threshold": null,
       "tol": 2.0,
       "unit": "pp",
-      "value": 43.109440385842966,
+      "value": 43.36778029445074,
       "why_tol": "text; a solved-policy quantity that is noisier than the observed rate"
     },
     "player_split_half_ci_hi_min10": {
@@ -494,7 +494,7 @@
       "threshold": 0.0,
       "tol": 0.12,
       "unit": "",
-      "value": 0.030150755795531076,
+      "value": 0.03015075579553102,
       "why_tol": "CI endpoints may wobble, but a change in whether they clear zero needs review"
     },
     "player_split_half_ci_lo_min8": {
@@ -546,7 +546,7 @@
       "threshold": null,
       "tol": 0.12,
       "unit": "",
-      "value": 0.23243503569107363,
+      "value": 0.23243503569107357,
       "why_tol": "the sturdier of the player cuts, but still one partial season"
     },
     "player_split_half_r_min8": {
@@ -585,7 +585,7 @@
       "threshold": null,
       "tol": 0.12,
       "unit": "in",
-      "value": 2.00055154468723,
+      "value": 2.001793725452064,
       "why_tol": "sigma bar chart resolution"
     },
     "sigma_precision_gap_pct": {
@@ -599,7 +599,7 @@
       "threshold": null,
       "tol": 4,
       "unit": "pp",
-      "value": 27.889255807397728,
+      "value": 27.844480865401465,
       "why_tol": "a ratio of two fitted sigmas, stated as '~28%'; noisier than either input"
     },
     "stephenson_pct_rank": {
@@ -689,6 +689,6 @@
       "why_tol": "FROZEN artifact (zone_sigma_refit.py is not re-run daily); value does not move between refreshes, so tol stays tight"
     }
   },
-  "generated_at": "2026-11-04T21:39:20.664001+00:00",
+  "generated_at": "2026-11-05T21:58:40.711277+00:00",
   "n_figures": 55
 }
