@@ -689,6 +689,6 @@
       "why_tol": "FROZEN artifact (zone_sigma_refit.py is not re-run daily); value does not move between refreshes, so tol stays tight"
     }
   },
-  "generated_at": "2026-11-11T22:05:38.252670+00:00",
+  "generated_at": "2026-11-12T22:11:52.025857+00:00",
   "n_figures": 55
 }
